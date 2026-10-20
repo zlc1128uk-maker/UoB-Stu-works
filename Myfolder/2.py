@@ -1,0 +1,6 @@
+print("I'm Alarick") 
+print("I'm 17 years old")
+print("I like playing basketball")
+print("I like computer science")
+print("I love mathematics")
+print("I love bristol")
