@@ -1,0 +1,920 @@
+<!DOCTYPE html>
+<!--
+  Interactive 3D Sandwich Algorithm
+  ---------------------------------
+  One HTML file that teaches computational thinking:
+    sequence  = steps in order
+    selection = Yes / No decisions
+    iteration = the bacon loop
+
+  Languages: HTML (structure), CSS (layout + flowchart), JavaScript (logic + 3D).
+  Library:   Three.js r160, loaded from unpkg via the import map below.
+  Open this file in Chrome or Edge. Internet is needed once so Three.js can load.
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Interactive 3D Sandwich Algorithm</title>
+  <!-- Page layout, flowchart shapes, and arrows -->
+  <style>
+    :root { --bg:#f4f1ea; --ink:#1d1a16; --card:#fffdf8; --line:#e6dfd2; --accent:#c45c26; }
+    * { box-sizing: border-box; }
+    html, body { margin:0; height:100%; overflow:hidden; font-family:"Segoe UI",system-ui,sans-serif; background:radial-gradient(circle at 20% 10%, #fff 0%, var(--bg) 55%); color:var(--ink); }
+    .wrap { display:grid; grid-template-columns:minmax(0,1fr) 360px; height:100vh; width:100%; }
+    #canvas-wrap { position:relative; min-height:0; height:100%; }
+    canvas { display:block; width:100%; height:100%; }
+    .hint { position:absolute; left:16px; bottom:16px; background:rgba(255,253,248,.94); border:1px solid var(--line); border-radius:12px; padding:10px 12px; font-size:13px; line-height:1.4; max-width:300px; }
+    aside { border-left:1px solid var(--line); background:var(--card); padding:0; overflow:hidden; display:flex; flex-direction:column; min-height:0; }
+    .aside-top { flex:0 0 auto; padding:12px 14px 8px; border-bottom:1px solid var(--line); background:var(--card); }
+    .flow-scroll { flex:1 1 auto; overflow-y:auto; padding:8px 14px 20px; min-height:0; }
+    h1 { font-size:17px; margin:0 0 8px; }
+    .ipo { display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px; margin:0 0 12px; }
+    .ipo div { border:1px solid var(--line); border-radius:10px; padding:7px 8px; background:#fff; }
+    .ipo b { display:block; font-size:11px; letter-spacing:0; text-transform:none; color:#6a6258; margin-bottom:3px; }
+    .ipo span { font-size:11px; line-height:1.35; color:#3f3a34; }
+    .legend { display:flex; flex-wrap:wrap; gap:8px 10px; margin:4px 0 8px; font-size:11px; color:#5b5348; }
+    .legend i { display:inline-block; width:10px; height:10px; margin-right:4px; vertical-align:-1px; border:1px solid #cbbca8; }
+    .legend .l-se { background:#2f6f6a; border-radius:99px; border-color:#2f6f6a; }
+    .legend .l-pr { background:#fff; }
+    .legend .l-de { background:#fff8e8; transform:rotate(45deg); width:9px; height:9px; }
+    .legend .l-lp { background:transparent; border:none; box-shadow:inset 0 0 0 2px #7a6f62; border-radius:2px; }
+    .hint { position:absolute; left:16px; bottom:16px; background:rgba(255,253,248,.94); border:1px solid var(--line); border-radius:12px; padding:10px 12px; font-size:13px; line-height:1.4; max-width:340px; }
+    .hint small { display:block; color:#6a6258; font-size:11px; margin-top:4px; }
+    label { display:block; font-size:11px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; margin:8px 0 4px; color:#6a6258; }
+    input[type="range"] { width:100%; }
+    .row { display:flex; gap:6px; flex-wrap:wrap; margin:6px 0 2px; }
+    button { border:1px solid var(--line); background:#fff; border-radius:999px; padding:6px 10px; cursor:pointer; font-weight:600; font-size:13px; }
+    button:hover { border-color:var(--accent); color:var(--accent); }
+    button.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+    .flow { display:flex; flex-direction:column; align-items:center; gap:0; margin-top:4px; }
+    .flow .node {
+      width:100%; max-width:250px; border:2px solid #cbbca8; background:#fff;
+      color:var(--ink); font:650 12px/1.3 "Segoe UI",system-ui,sans-serif;
+      padding:6px 8px; cursor:pointer; text-align:center; border-radius:8px;
+    }
+    .flow .node:hover { color:var(--ink); }
+    .flow .startend { border-radius:999px; background:#2f6f6a; color:#fff; border-color:#2f6f6a; }
+    .flow .startend:hover { color:#fff; }
+    .flow .decision {
+      width:108px; height:108px; max-width:108px; display:flex; align-items:center;
+      justify-content:center; margin:0; background:#fff8e8;
+      clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+      font-size:11px;
+    }
+    .flow .decision span { display:block; padding:0 14px; }
+    .flow > .decision { margin:0; }
+    .flow .node.on { border-color:var(--accent); background:#fff3e8; box-shadow:0 0 0 3px rgba(196,92,38,.18); }
+    .flow .startend.on { background:#c45c26; border-color:#c45c26; color:#fff; }
+    .flow .arrow { width:2px; height:12px; background:#7a6f62; position:relative; flex-shrink:0; margin:0; }
+    .flow .arrow:after {
+      content:""; position:absolute; left:-4px; bottom:-1px;
+      border:5px solid transparent; border-top-color:#7a6f62;
+    }
+    .flow .branch {
+      display:flex; justify-content:space-between; width:100%; max-width:280px;
+      margin:-8px 0 6px; font-size:11px; color:#6a6258; font-weight:700;
+    }
+    .flow .fork { width:100%; max-width:270px; display:flex; flex-direction:column; align-items:center; margin:0; }
+    .flow .stem { width:2px; height:18px; background:#7a6f62; flex-shrink:0; }
+    .flow .bar { width:calc(50% + 7px); height:2px; background:#7a6f62; }
+    .flow .fork-cols { display:grid; grid-template-columns:1fr 1fr; width:100%; gap:14px; }
+    .flow .col { display:flex; flex-direction:column; align-items:center; min-height:100%; }
+    .flow .col .node { width:100%; max-width:none; }
+    .flow .lbl { font-size:11px; font-weight:700; color:#6a6258; margin:2px 0 4px; }
+    .flow .vline { width:2px; height:12px; background:#7a6f62; position:relative; flex-shrink:0; }
+    .flow .col > .vline:first-child { height:16px; }
+    .flow .vline.grow { flex:1; min-height:18px; }
+    .flow .vline.cap:after {
+      content:""; position:absolute; left:-4px; bottom:-1px;
+      border:5px solid transparent; border-top-color:#7a6f62;
+    }
+    .flow .loop-wrap {
+      position:relative; width:100%; max-width:250px;
+      display:flex; flex-direction:column; align-items:center;
+    }
+    .flow .diamond-slot {
+      width:108px; height:108px; margin:0;
+      display:flex; align-items:center; justify-content:center; flex-shrink:0;
+    }
+    .flow .loop-wrap .decision { margin:0; }
+    .flow .loop-wrap .arrow { height:18px; margin:0; }
+    .flow .yes-link { display:flex; flex-direction:column; align-items:center; margin:0; width:100%; }
+    .flow .yes-link .arrow { height:18px; }
+    .flow .side-loop {
+      position:absolute; right:-24px; top:16px; bottom:52px; width:26px;
+      border:2px solid #7a6f62; border-left:none; border-radius:0 8px 8px 0;
+      pointer-events:none;
+    }
+    .flow .side-loop .in {
+      position:absolute; left:-72px; bottom:-2px; width:72px; height:2px; background:#7a6f62;
+    }
+    .flow .side-loop:before {
+      content:"No"; position:absolute; left:6px; top:36%;
+      font-size:11px; font-weight:700; color:#6a6258;
+    }
+    .flow .code-note {
+      font-size:12px; color:#3f3a34; text-align:center; line-height:1.45;
+      margin:10px 0 8px; max-width:280px; padding:8px 10px;
+      background:#fff; border:1px solid var(--line); border-radius:8px;
+    }
+    .flow .tag { font-size:10px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:#8a7f72; margin:12px 0 4px; }
+    .flow .side-loop:after {
+      content:""; position:absolute; left:-6px; top:-2px;
+      border:6px solid transparent; border-right-color:#7a6f62;
+    }
+    @media (max-width:1100px){ .wrap{grid-template-columns:minmax(0,1fr) 320px;} }
+    @media (max-width:860px){ .wrap{grid-template-columns:1fr; grid-template-rows:46vh 54vh;} aside{border-left:0; border-top:1px solid var(--line);} }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div id="canvas-wrap">
+      <div class="hint" id="stepHint">START</div>
+    </div>
+    <aside>
+      <div class="aside-top">
+      <h1>Algorithm: How to make a Sandwich</h1>
+      <div class="ipo">
+        <div><b>Input</b><span>Bread, bacon, tomato, lettuce, plate, knife</span></div>
+        <div><b>Process</b><span>Follow the flowchart step by step</span></div>
+        <div><b>Output</b><span>One sandwich, whole or cut</span></div>
+      </div>
+      <div class="row">
+        <button id="prevStep" type="button">Previous</button>
+        <button id="nextStep" type="button" class="active">Next step</button>
+        <button id="replay" type="button">Start over</button>
+      </div>
+      <label for="explode">Expand layers</label>
+      <input id="explode" type="range" min="0" max="100" value="70" />
+      <div class="row">
+        <button id="assembled" type="button">Assembled</button>
+        <button id="exploded" type="button" class="active">Expanded</button>
+        <button id="reset" type="button">Reset view</button>
+      </div>
+      <label>Algorithm flowchart</label>
+      <div class="legend">
+        <span><i class="l-se"></i>Start / End</span>
+        <span><i class="l-pr"></i>Process</span>
+        <span><i class="l-de"></i>Decision</span>
+        <span><i class="l-lp"></i>Loop</span>
+      </div>
+      </div>
+      <div class="flow-scroll">
+      <!-- Clickable flowchart. data-step must match an id in the STEPS array. -->
+      <div class="flow" id="algo">
+        <div class="tag">Start / End</div>
+        <button class="node startend" data-step="start" type="button">START</button>
+        <div class="arrow"></div>
+        <div class="tag">Process</div>
+        <button class="node process" data-step="hands" type="button">Get the ingredients</button>
+        <div class="arrow"></div>
+        <button class="node process" data-step="prep" type="button">Prepare the plate and knife</button>
+        <div class="arrow"></div>
+        <div class="tag">Decision</div>
+        <div class="diamond-slot">
+          <button class="node decision" data-step="toastAsk" type="button"><span>Toast the bread?</span></button>
+        </div>
+        <div class="fork">
+          <div class="stem"></div>
+          <div class="bar"></div>
+          <div class="fork-cols">
+            <div class="col">
+              <div class="vline cap"></div>
+              <div class="lbl">Yes</div>
+              <button class="node process" data-step="toastYes" type="button">Toast the bread</button>
+              <div class="vline grow"></div>
+            </div>
+            <div class="col">
+              <div class="vline cap"></div>
+              <div class="lbl">No</div>
+              <button class="node process" data-step="toastNo" type="button">Leave the bread as it is</button>
+              <div class="vline grow"></div>
+            </div>
+          </div>
+          <div class="bar"></div>
+          <div class="vline cap"></div>
+        </div>
+        <button class="node process" data-step="breadBottom" type="button">Put the bottom toast on the plate</button>
+        <div class="arrow"></div>
+        <div class="tag">Loop</div>
+        <div class="loop-wrap">
+          <button class="node process" data-step="bacon" type="button">Put the bacon on the toast</button>
+          <div class="arrow"></div>
+          <div class="diamond-slot">
+            <button class="node decision" data-step="baconEnough" type="button"><span>Enough bacon?</span></button>
+          </div>
+          <div class="side-loop" title="No: put more bacon"><span class="in"></span></div>
+        </div>
+        <div class="yes-link">
+          <div class="lbl">Yes</div>
+          <div class="arrow"></div>
+        </div>
+        <div class="tag">Decision</div>
+        <div class="diamond-slot">
+          <button class="node decision" data-step="tomatoAsk" type="button"><span>Add tomato?</span></button>
+        </div>
+        <div class="fork">
+          <div class="stem"></div>
+          <div class="bar"></div>
+          <div class="fork-cols">
+            <div class="col">
+              <div class="vline cap"></div>
+              <div class="lbl">Yes</div>
+              <button class="node process" data-step="tomato" type="button">Put the tomato on the bacon</button>
+              <div class="vline grow"></div>
+            </div>
+            <div class="col">
+              <div class="vline cap"></div>
+              <div class="lbl">No</div>
+              <button class="node process" data-step="tomatoSkip" type="button">Skip the tomato</button>
+              <div class="vline grow"></div>
+            </div>
+          </div>
+          <div class="bar"></div>
+          <div class="vline cap"></div>
+        </div>
+        <button class="node process" data-step="lettuce" type="button">Put the lettuce on the sandwich</button>
+        <div class="arrow"></div>
+        <button class="node process" data-step="breadTop" type="button">Put the top toast on the lettuce</button>
+        <div class="arrow"></div>
+        <button class="node process" data-step="press" type="button">Press the sandwich together</button>
+        <div class="arrow"></div>
+        <div class="tag">Decision</div>
+        <button class="node decision" data-step="cut" type="button"><span>Cut in half?</span></button>
+        <div class="fork">
+          <div class="stem"></div>
+          <div class="bar"></div>
+          <div class="fork-cols">
+            <div class="col">
+              <div class="vline cap"></div>
+              <div class="lbl">Yes</div>
+              <button class="node process" data-step="cutYes" type="button">Cut down the middle</button>
+              <div class="vline grow"></div>
+            </div>
+            <div class="col">
+              <div class="vline cap"></div>
+              <div class="lbl">No</div>
+              <button class="node process" data-step="cutNo" type="button">Leave the sandwich whole</button>
+              <div class="vline grow"></div>
+            </div>
+          </div>
+          <div class="bar"></div>
+          <div class="vline cap"></div>
+          <button class="node startend" data-step="done" type="button">END</button>
+        </div>
+      </div>
+      </div>
+    </aside>
+  </div>
+  <!-- Maps the short names "three" and "three/addons/" to CDN URLs. -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+  <script type="module">
+    /**
+     * 3D scene + algorithm runner.
+     * showStep(i) is the "program counter": it highlights a flowchart box
+     * and updates which ingredients sit on the plate.
+     */
+    import * as THREE from "three";
+    import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+    const SHAPES = {"breadTop": [[-0.7011, 2.0806], [1.0984, 1.8726], [1.1217, 1.7339], [1.9397, 1.4565], [2.0565, 1.3177], [2.1266, 0.7629], [2.1266, -0.8323], [1.8696, -0.9016], [1.8462, -1.3177], [1.6359, -1.6645], [0.5375, -1.7339], [0.4908, -2.0806], [0.3739, -1.8726], [0.1402, -2.0806], [-0.1168, -1.8032], [-0.3739, -1.8032], [-0.3973, -1.9419], [-0.7011, -1.7339], [-1.706, -1.6645], [-1.7527, -0.9016], [-1.8462, -0.6242], [-1.9864, -0.6242], [-2.0332, -0.3468], [-2.1266, -0.3468], [-2.1033, 1.5952], [-0.7478, 1.9419]], "lettuce": [[0.4889, 2.0823], [1.0073, 2.0146], [1.3842, 1.6083], [1.8084, 0.8634], [1.9497, 0.8634], [1.9968, 0.5248], [1.8084, 0.5248], [1.7612, 0.3217], [1.8084, -0.0169], [1.667, -0.0846], [1.9262, -0.6941], [1.9968, -0.6941], [2.1382, -1.1004], [2.1382, -1.3713], [1.879, -1.7776], [1.667, -1.7776], [1.6199, -2.0484], [1.5256, -2.1161], [1.3842, -2.0484], [1.2664, -1.7098], [1.1015, -1.6421], [1.0308, -1.3035], [0.8423, -1.5067], [0.5125, -1.3713], [0.3711, -1.8453], [0.0412, -1.913], [-0.2651, -1.2358], [-0.6185, -1.1004], [-0.807, -1.3035], [-0.9012, -1.6421], [-1.2782, -1.913], [-1.3018, -2.1161], [-1.396, -1.9807], [-1.3725, -1.5067], [-1.5845, -1.6421], [-1.5138, -1.5067], [-1.5845, -0.965], [-1.9144, -0.8972], [-2.0793, -1.1004], [-2.15, -0.8972], [-2.1264, -0.0169], [-2.0086, 0.0508], [-2.1264, 1.202], [-2.0558, 1.2697], [-2.0558, 1.4728], [-2.15, 1.676], [-2.0793, 1.8114], [-1.8673, 1.676], [-1.8201, 1.8791], [-1.561, 1.9469], [-1.3725, 1.4051], [-1.2547, 1.3374], [-0.9248, 1.8114], [-0.43, 1.7437], [0.0412, 2.0146], [0.4418, 1.9469]], "tomato": [[-0.4207, 2.15], [0.1636, 2.15], [0.187, 1.8192], [0.631, 2.0177], [1.1217, 1.8192], [1.3087, 1.29], [1.2386, 0.9592], [1.3321, 0.6285], [1.5891, 0.2977], [1.706, 0.3638], [1.7293, 0.1654], [1.963, 0.0992], [2.1266, -0.1654], [2.1266, -0.4962], [2.0098, -0.8269], [1.8462, -0.8931], [1.8696, -1.6208], [1.7995, -1.7531], [1.7293, -1.6208], [1.3087, -2.0177], [0.9582, -2.0838], [0.0, -2.0177], [-0.5375, -1.5546], [-0.6777, -1.6869], [-0.7478, -1.5546], [-1.075, -1.5546], [-1.1217, -1.6869], [-1.1451, -1.5546], [-1.6826, -1.29], [-1.7761, -0.6946], [-1.9397, -0.6946], [-1.963, -0.8931], [-2.1266, -0.6946], [-2.1033, 0.3638], [-2.0332, 0.4962], [-1.3321, 1.4223], [-1.1918, 1.4223], [-1.075, 1.6869], [-1.0049, 1.6208]], "bacon": [[-1.5096, 2.15], [-1.3952, 2.0438], [-1.3266, 2.15], [-0.6404, 2.15], [-0.5032, 1.566], [-0.183, 1.6722], [-0.1372, 1.8846], [0.183, 1.9377], [0.3202, 2.15], [0.5261, 2.0438], [1.5324, 2.15], [1.6239, 1.9907], [1.6239, 1.7784], [1.5324, 1.7253], [1.5096, 1.566], [1.3037, 1.566], [1.2351, 1.3006], [1.4181, 1.0883], [1.5782, 1.0883], [1.6697, 0.8759], [1.9213, 0.8228], [1.9213, 0.0265], [2.0585, -0.1327], [2.1271, -0.6105], [2.1043, -1.513], [1.8755, -2.0438], [1.6926, -1.8846], [1.6239, -1.9907], [1.5553, -1.8846], [1.1207, -1.9907], [0.9606, -1.9377], [0.9606, -1.513], [0.7548, -1.513], [0.4346, -1.2475], [0.1372, -1.7784], [0.0686, -1.6722], [-0.0457, -1.8846], [-0.3431, -2.0969], [-0.9378, -2.0969], [-0.9835, -1.8315], [-0.9149, -1.6191], [-0.8463, -1.6722], [-0.7319, -1.513], [-0.7548, -1.3537], [-0.8234, -1.2475], [-1.0521, -1.4068], [-1.5782, -0.8759], [-1.967, -0.9821], [-1.967, -0.5574], [-1.8298, -0.1327], [-2.1271, -0.0796], [-2.15, 0.0265], [-2.15, 0.2389], [-2.0356, 0.6105], [-1.9213, 0.5574], [-1.6011, 0.8228], [-1.6011, 1.1414], [-1.5324, 1.3537], [-1.6239, 1.7253]], "breadBottom": [[-1.6185, 2.15], [-1.377, 2.0418], [-0.3865, 2.15], [-0.4348, 2.0959], [-0.1691, 1.9336], [0.918, 2.15], [1.5702, 2.0418], [1.6669, 1.8796], [1.7635, 1.1764], [1.6669, 0.6896], [2.0051, 0.6355], [2.1017, 0.311], [2.1258, -0.7167], [2.0051, -1.0953], [2.0051, -1.3116], [1.8843, -1.4739], [1.7876, -1.4739], [1.6185, -1.7443], [1.5461, -1.6903], [1.4736, -1.8525], [0.8455, -2.0689], [-0.459, -2.0689], [-0.4831, -1.9607], [-0.9663, -1.8525], [-1.0629, -1.9607], [-1.2079, -1.6903], [-1.377, -1.7443], [-1.4978, -1.528], [-1.7876, -1.4739], [-2.0534, -1.0412], [-2.0775, -0.8248], [-2.15, -0.8248], [-2.1017, -0.7167], [-2.1017, 0.6355], [-2.0292, 0.6355], [-1.8843, 1.0142], [-1.9084, 1.3387], [-1.8118, 1.9336]]};
+
+    // ---- Scene, camera, renderer ------------------------------------------
+    const wrap = document.getElementById("canvas-wrap");
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xf4f1ea);
+    const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 80);
+    camera.position.set(12.5, 8.2, 13.0);
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.localClippingEnabled = true;
+    wrap.appendChild(renderer.domElement);
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.target.set(0, 0.8, 0);
+    controls.minDistance = 6; controls.maxDistance = 32;
+
+    scene.add(new THREE.HemisphereLight(0xfff6ea, 0x8a7b68, 0.95));
+    const key = new THREE.DirectionalLight(0xfff6e8, 1.15);
+    key.position.set(5, 9, 4); key.castShadow = true; scene.add(key);
+    const fill = new THREE.DirectionalLight(0xc9e4ff, 0.32);
+    fill.position.set(-6, 3, -2); scene.add(fill);
+
+    const ground = new THREE.Mesh(
+      new THREE.CircleGeometry(14, 64),
+      new THREE.MeshStandardMaterial({ color: 0xe9e1d4, roughness: 1 })
+    );
+    ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
+
+    /** Extrude a 2D outline into a 3D slice (bread and lettuce). */
+    function extruded(points, thickness, color) {
+      const shape = new THREE.Shape();
+      shape.moveTo(points[0][0], points[0][1]);
+      for (let i = 1; i < points.length; i++) shape.lineTo(points[i][0], points[i][1]);
+      shape.closePath();
+      const geo = new THREE.ExtrudeGeometry(shape, {
+        depth: thickness,
+        bevelEnabled: true,
+        bevelThickness: Math.min(0.055, thickness * 0.22),
+        bevelSize: 0.045,
+        bevelSegments: 3,
+        curveSegments: 10
+      });
+      geo.rotateX(-Math.PI / 2);
+      geo.translate(0, thickness / 2, 0);
+      geo.computeVertexNormals();
+      const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.62, metalness: 0.02 });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      return mesh;
+    }
+
+    /** Paint a tomato texture onto a canvas, then use it as a Three.js map. */
+    function tomatoMaps() {
+      const size = 512;
+      const c = document.createElement("canvas");
+      c.width = size; c.height = size;
+      const g = c.getContext("2d");
+      const cx = 256, cy = 256;
+      g.fillStyle = "#d32f2a";
+      g.fillRect(0, 0, size, size);
+      const flesh = g.createRadialGradient(cx, cy, 40, cx, cy, 250);
+      flesh.addColorStop(0, "#e45b50");
+      flesh.addColorStop(1, "#c62824");
+      g.fillStyle = flesh;
+      g.beginPath(); g.arc(cx, cy, 248, 0, Math.PI * 2); g.fill();
+      for (let i = 0; i < 28; i++) {
+        const a = (i / 28) * Math.PI * 2 + (i % 4) * 0.07;
+        const r = 48 + (i % 5) * 24;
+        g.fillStyle = i % 2 ? "#6b1d14" : "#f0d4a4";
+        g.beginPath();
+        g.arc(cx + Math.cos(a) * r, cy + Math.sin(a) * r, i % 2 ? 4 : 5.5, 0, Math.PI * 2);
+        g.fill();
+      }
+      const map = new THREE.CanvasTexture(c);
+      map.colorSpace = THREE.SRGBColorSpace;
+      return { map, bump: null };
+    }
+
+    /** Three tomato discs arranged as a layer. */
+    function tomatoSlices() {
+      const group = new THREE.Group();
+      const { map, bump } = tomatoMaps();
+      const pieces = [
+        { x: -0.72, z:  0.22, r: 1.05, h: 0.18, rot: 0.18 },
+        { x:  0.68, z:  0.28, r: 0.98, h: 0.17, rot: -0.22 },
+        { x:  0.08, z: -0.78, r: 0.92, h: 0.17, rot: 0.40 }
+      ];
+      pieces.forEach((p) => {
+        const flesh = new THREE.Mesh(
+          new THREE.CylinderGeometry(p.r, p.r, p.h, 36),
+          new THREE.MeshStandardMaterial({ map, roughness: 0.5, metalness: 0.02 })
+        );
+        flesh.position.set(p.x, 0, p.z);
+        flesh.rotation.y = p.rot;
+        flesh.castShadow = true;
+        flesh.receiveShadow = true;
+        group.add(flesh);
+      });
+      return group;
+    }
+
+    function baconStrands() {
+      const group = new THREE.Group();
+      const strips = [
+        { x: -0.85, z: 0.15, rot: 0.18, len: 3.3, lean: 0.08 },
+        { x: -0.18, z: -0.05, rot: -0.06, len: 3.45, lean: -0.05 },
+        { x:  0.52, z: 0.20, rot: 0.22, len: 3.2, lean: 0.10 },
+        { x:  1.10, z: -0.12, rot: -0.16, len: 3.05, lean: -0.08 }
+      ];
+      const allStrips = strips.map((s, i) => ({ ...s, y: i * 0.035 })).concat(
+        strips.map((s, i) => ({
+          x: s.z * 0.85,
+          z: -s.x * 0.28,
+          rot: s.rot + Math.PI / 2,
+          len: s.len * 0.92,
+          lean: -s.lean,
+          y: 0.18 + i * 0.03
+        }))
+      );
+      allStrips.forEach((s, i) => {
+        const shape = new THREE.Shape();
+        const w = 0.34;
+        shape.moveTo(-w, -s.len / 2);
+        shape.quadraticCurveTo(-w - 0.08, 0, -w + 0.04, s.len / 2);
+        shape.lineTo(w - 0.02, s.len / 2 + 0.04);
+        shape.quadraticCurveTo(w + 0.07, 0, w, -s.len / 2);
+        shape.closePath();
+        const geo = new THREE.ExtrudeGeometry(shape, {
+          depth: 0.09, bevelEnabled: true, bevelThickness: 0.02, bevelSize: 0.02, bevelSegments: 2
+        });
+        geo.rotateX(-Math.PI / 2);
+        const meat = i % 2 ? 0x7a2e1d : 0x9a3d24;
+        const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: meat, roughness: 0.55, metalness: 0.04 }));
+        mesh.position.set(s.x, s.y, s.z);
+        mesh.rotation.y = s.rot;
+        mesh.rotation.z = s.lean;
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        const fat = new THREE.Mesh(
+          new THREE.BoxGeometry(0.07, 0.04, s.len * 0.72),
+          new THREE.MeshStandardMaterial({ color: 0xe8c9a0, roughness: 0.45 })
+        );
+        fat.position.set(s.x + 0.02, s.y + 0.06, s.z);
+        fat.rotation.y = s.rot;
+        group.add(mesh, fat);
+      });
+      return group;
+    }
+
+    /** White plate under the sandwich. */
+    function makePlate() {
+      const group = new THREE.Group();
+      const white = new THREE.MeshStandardMaterial({ color: 0xf7f4ef, roughness: 0.35, metalness: 0.05 });
+      const well = new THREE.Mesh(new THREE.CylinderGeometry(3.19, 3.38, 0.07, 48), white);
+      well.receiveShadow = true;
+      well.castShadow = true;
+      const rim = new THREE.Mesh(new THREE.TorusGeometry(3.40, 0.12, 12, 48), white);
+      rim.rotation.x = Math.PI / 2;
+      rim.position.y = 0.05;
+      rim.castShadow = true;
+      const base = new THREE.Mesh(new THREE.CylinderGeometry(1.44, 1.56, 0.06, 32), white);
+      base.position.y = -0.06;
+      group.add(well, rim, base);
+      return group;
+    }
+
+    const layers = {
+      plate:       { obj: makePlate(), y0: 0.08, y1: 0.08 },
+      breadBottom: { obj: extruded(SHAPES.breadBottom, 0.40, 0xd8a45a), y0: 0.36, y1: 0.36 },
+      bacon:       { obj: baconStrands(), y0: 0.90, y1: 1.65 },
+      tomato:      { obj: tomatoSlices(), y0: 1.30, y1: 2.65 },
+      lettuce:     { obj: extruded(SHAPES.lettuce,     0.18, 0x8fbf4a), y0: 1.60, y1: 3.60 },
+      breadTop:    { obj: extruded(SHAPES.breadTop,    0.40, 0xe0b36a), y0: 1.94, y1: 4.58 }
+    };
+    Object.values(layers).forEach((layer) => scene.add(layer.obj));
+
+    /** Kitchen knife used in the cut animation. */
+    function makeKnife() {
+      const g = new THREE.Group();
+      const silver = new THREE.MeshStandardMaterial({ color: 0xd7dee4, metalness: 0.82, roughness: 0.18 });
+      const profile = new THREE.Shape();
+      profile.moveTo(0.05, 0.22);
+      profile.lineTo(-4.55, 0.18);
+      profile.quadraticCurveTo(-5.25, 0.12, -5.55, 0.0);
+      profile.quadraticCurveTo(-4.1, -0.28, -1.4, -0.24);
+      profile.lineTo(0.05, -0.16);
+      profile.closePath();
+      const bladeGeo = new THREE.ExtrudeGeometry(profile, {
+        depth: 0.045, bevelEnabled: true, bevelThickness: 0.012, bevelSize: 0.012, bevelSegments: 2
+      });
+      bladeGeo.translate(0, 0, -0.022);
+      const blade = new THREE.Mesh(bladeGeo, silver);
+      blade.castShadow = true;
+      const bolster = new THREE.Mesh(
+        new THREE.BoxGeometry(0.22, 0.42, 0.16),
+        new THREE.MeshStandardMaterial({ color: 0xb7c0c8, metalness: 0.7, roughness: 0.28 })
+      );
+      bolster.position.set(0.12, 0.02, 0);
+      const wood = new THREE.MeshStandardMaterial({ color: 0x4a2e1c, roughness: 0.62 });
+      const handle = new THREE.Mesh(new THREE.BoxGeometry(1.45, 0.26, 0.18), wood);
+      handle.position.set(0.95, 0.03, 0);
+      const butt = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.3, 0.2), wood);
+      butt.position.set(1.68, 0.03, 0);
+      const rivetMat = new THREE.MeshStandardMaterial({ color: 0xc5ccd2, metalness: 0.7, roughness: 0.3 });
+      const r1 = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.2, 12), rivetMat);
+      r1.rotation.x = Math.PI / 2; r1.position.set(0.55, 0.03, 0);
+      const r2 = r1.clone(); r2.position.set(0.95, 0.03, 0);
+      const r3 = r1.clone(); r3.position.set(1.35, 0.03, 0);
+      g.add(blade, bolster, handle, butt, r1, r2, r3);
+      g.rotation.y = -Math.PI / 2;
+      g.visible = false;
+      return g;
+    }
+    const knife = makeKnife();
+    scene.add(knife);
+
+    const leftHold = new THREE.Group();
+    const rightHold = new THREE.Group();
+    leftHold.visible = false;
+    rightHold.visible = false;
+    scene.add(leftHold, rightHold);
+    // Layers that can be sliced when the sandwich is cut in half.
+    const FOOD = ["breadBottom", "bacon", "tomato", "lettuce", "breadTop"];
+
+    function lerpPoint(a, b, t) {
+      return new THREE.Vector3(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, a.z + (b.z - a.z) * t);
+    }
+    function clipTriWorldX(a, b, c, keepPos, out, cap) {
+      const keep = (p) => keepPos ? p.x >= 0 : p.x <= 0;
+      const pts = [a, b, c];
+      const inside = pts.map(keep);
+      const nIn = inside.filter(Boolean).length;
+      if (nIn === 3) { out.push(a, b, c); return; }
+      if (nIn === 0) return;
+      const cut = (p, q) => {
+        const t = p.x / (p.x - q.x || 1e-6);
+        return lerpPoint(p, q, t);
+      };
+      const ins = [], outs = [];
+      pts.forEach((p, i) => (inside[i] ? ins : outs).push(p));
+      if (nIn === 1) {
+        const p = ins[0];
+        const q = pts[(pts.indexOf(p) + 1) % 3];
+        const r = pts[(pts.indexOf(p) + 2) % 3];
+        const cq = cut(p, q), cr = cut(p, r);
+        out.push(p, cq, cr);
+        cap.push(cq, cr);
+      } else {
+        const p = outs[0];
+        const q = pts[(pts.indexOf(p) + 1) % 3];
+        const r = pts[(pts.indexOf(p) + 2) % 3];
+        const cq = cut(p, q), cr = cut(p, r);
+        out.push(q, r, cq);
+        out.push(r, cr, cq);
+        cap.push(cq, cr);
+      }
+    }
+    /** Keep one side of a layer (x >= 0 or x <= 0) and cap the cut face. */
+    function sliceLayer(src, keepPos, fill) {
+      const group = new THREE.Group();
+      src.updateWorldMatrix(true, true);
+      const v = new THREE.Vector3();
+      const capAll = [];
+      src.traverse((ch) => {
+        if (!ch.isMesh || !ch.geometry) return;
+        const srcGeo = ch.geometry.index ? ch.geometry.toNonIndexed() : ch.geometry;
+        const pos = srcGeo.attributes.position;
+        if (!pos) return;
+        const world = [];
+        for (let i = 0; i < pos.count; i++) {
+          v.fromBufferAttribute(pos, i).applyMatrix4(ch.matrixWorld);
+          world.push(v.clone());
+        }
+        const out = [];
+        const cap = [];
+        for (let i = 0; i < world.length; i += 3) {
+          clipTriWorldX(world[i], world[i + 1], world[i + 2], keepPos, out, cap);
+        }
+        capAll.push(...cap);
+        if (out.length < 3) return;
+        const arr = new Float32Array(out.length * 3);
+        out.forEach((p, i) => { arr[i * 3] = p.x; arr[i * 3 + 1] = p.y; arr[i * 3 + 2] = p.z; });
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute("position", new THREE.BufferAttribute(arr, 3));
+        geo.computeVertexNormals();
+        const mat = Array.isArray(ch.material) ? ch.material[0].clone() : ch.material.clone();
+        mat.transparent = false;
+        mat.opacity = 1;
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.castShadow = true;
+        group.add(mesh);
+      });
+      if (capAll.length >= 2) {
+        let minY = Infinity, maxY = -Infinity, minZ = Infinity, maxZ = -Infinity, sy = 0, sz = 0;
+        capAll.forEach((p) => {
+          minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
+          minZ = Math.min(minZ, p.z); maxZ = Math.max(maxZ, p.z);
+          sy += p.y; sz += p.z;
+        });
+        const center = new THREE.Vector3(keepPos ? 0.012 : -0.012, sy / capAll.length, sz / capAll.length);
+        const capVerts = [];
+        for (let i = 0; i + 1 < capAll.length; i += 2) {
+          capVerts.push(center, capAll[i], capAll[i + 1]);
+        }
+        if (capVerts.length >= 3) {
+          const arr = new Float32Array(capVerts.length * 3);
+          capVerts.forEach((p, i) => { arr[i * 3] = p.x; arr[i * 3 + 1] = p.y; arr[i * 3 + 2] = p.z; });
+          const capGeo = new THREE.BufferGeometry();
+          capGeo.setAttribute("position", new THREE.BufferAttribute(arr, 3));
+          capGeo.computeVertexNormals();
+          const capMesh = new THREE.Mesh(
+            capGeo,
+            new THREE.MeshStandardMaterial({ color: fill, roughness: 0.7, metalness: 0.02, side: THREE.DoubleSide })
+          );
+          group.add(capMesh);
+        }
+        const slab = new THREE.Mesh(
+          new THREE.BoxGeometry(0.06, Math.max(0.1, maxY - minY), Math.max(0.4, maxZ - minZ)),
+          new THREE.MeshStandardMaterial({ color: fill, roughness: 0.72, metalness: 0.02 })
+        );
+        slab.position.set(keepPos ? 0.02 : -0.02, (minY + maxY) / 2, (minZ + maxZ) / 2);
+        group.add(slab);
+      }
+      return group;
+    }
+    const FILL = {
+      breadBottom: 0xf0d7a8,
+      bacon: 0x8a3a22,
+      tomato: 0xd32f2a,
+      lettuce: 0x8fbf4a,
+      breadTop: 0xf0d7a8
+    };
+    /** Build left and right sandwich halves for the cut animation. */
+    function rebuildHalves() {
+      while (leftHold.children.length) leftHold.remove(leftHold.children[0]);
+      while (rightHold.children.length) rightHold.remove(rightHold.children[0]);
+      FOOD.filter((key) => currentBuilt.includes(key)).forEach((key) => {
+        leftHold.add(sliceLayer(layers[key].obj, false, FILL[key]));
+        rightHold.add(sliceLayer(layers[key].obj, true, FILL[key]));
+      });
+    }
+
+    let cutting = false;
+    let cutAnim = 0;
+    let cutStartedAt = 0;
+    let sandwichSplit = false;
+    let skipTomato = false;
+    let toasted = false;
+    function setToasted(on) {
+      toasted = on;
+      const cols = on
+        ? { breadBottom: 0xa86b2c, breadTop: 0xb87a38 }
+        : { breadBottom: 0xd8a45a, breadTop: 0xe0b36a };
+      ["breadBottom", "breadTop"].forEach((key) => {
+        layers[key].obj.traverse((ch) => {
+          if (ch.isMesh && ch.material && ch.material.color) ch.material.color.setHex(cols[key]);
+        });
+      });
+    }
+    const SPLIT_GAP = 0.945;
+    const knifeRest = new THREE.Vector3(7.2, 0.10, 3.8);
+
+    const MISE = {
+      breadBottom: { x:  0.0, y: 0.36, z: -7.3 },
+      breadTop:    { x:  0.0, y: 0.82, z: -7.3 },
+      bacon:       { x:  0.0, y: 0.48, z:  7.3 },
+      tomato:      { x: -7.2, y: 0.42, z: -4.6 },
+      lettuce:     { x: -6.8, y: 0.40, z:  5.2 }
+    };
+    let explode = 0.70;
+    let currentBuilt = [];
+    let pantryOut = false;
+    /** Stack placed items on the plate; unused items stay in the pantry ring. */
+    function placeLayers() {
+      Object.entries(layers).forEach(([key, layer]) => {
+        if (key === "plate") {
+          layer.obj.position.set(0, layer.y0, 0);
+          return;
+        }
+        const onPlate = currentBuilt.includes(key);
+        if (onPlate) {
+          layer.obj.position.x = 0;
+          layer.obj.position.z = 0;
+          layer.obj.position.y = THREE.MathUtils.lerp(layer.y0, layer.y1, explode);
+        } else if (pantryOut && MISE[key]) {
+          layer.obj.position.set(MISE[key].x, MISE[key].y, MISE[key].z);
+        }
+      });
+    }
+    placeLayers();
+
+    const slider = document.getElementById("explode");
+    function syncButtons() {
+      document.getElementById("assembled").classList.toggle("active", explode < 0.08);
+      document.getElementById("exploded").classList.toggle("active", explode >= 0.08);
+    }
+    slider.addEventListener("input", () => { explode = slider.value / 100; placeLayers(); syncButtons(); });
+    document.getElementById("assembled").onclick = () => { explode = 0; slider.value = 0; placeLayers(); syncButtons(); };
+    document.getElementById("exploded").onclick = () => { explode = 0.70; slider.value = 70; placeLayers(); syncButtons(); };
+    document.getElementById("reset").onclick = () => { camera.position.set(12.5, 8.2, 13.0); controls.target.set(0, 0.8, 0); };
+
+    const ALL = ["plate", "breadBottom", "bacon", "tomato", "lettuce", "breadTop"];
+    /**
+     * Algorithm definition.
+     * id     = data-step on the flowchart button
+     * built  = ingredients currently on the plate
+     * kind   = text shown in the on-canvas hint
+     */
+    const STEPS = [
+      { id: "start", layer: null, built: [], kind: "Start / End — the algorithm begins here" },
+      { id: "hands", layer: null, built: [], pantry: true, kind: "Process — do this action" },
+      { id: "prep", layer: "plate", built: ["plate"], pantry: true, kind: "Process — do this action" },
+      { id: "toastAsk", layer: "plate", built: ["plate"], pantry: true, kind: "Decision — this choice changes the bread" },
+      { id: "toastYes", layer: "breadBottom", built: ["plate"], pantry: true, kind: "Process — toast the bread" },
+      { id: "toastNo", layer: "breadBottom", built: ["plate"], pantry: true, kind: "Process — leave the bread as it is" },
+      { id: "breadBottom", layer: "breadBottom", built: ["plate", "breadBottom"], kind: "Process — do this action" },
+      { id: "bacon", layer: "bacon", built: ["plate", "breadBottom", "bacon"], kind: "Process — this step can repeat" },
+      { id: "baconEnough", layer: "bacon", built: ["plate", "breadBottom", "bacon"], kind: "Decision — Yes continues, No repeats" },
+      { id: "tomatoAsk", layer: "bacon", built: ["plate", "breadBottom", "bacon"], kind: "Decision — this choice changes the sandwich" },
+      { id: "tomato", layer: "tomato", built: ["plate", "breadBottom", "bacon", "tomato"], kind: "Process — do this action" },
+      { id: "tomatoSkip", layer: "bacon", built: ["plate", "breadBottom", "bacon"], kind: "Process — skip this input" },
+      { id: "lettuce", layer: "lettuce", built: ["plate", "breadBottom", "bacon", "lettuce"], kind: "Process — do this action" },
+      { id: "breadTop", layer: "breadTop", built: ["plate", "breadBottom", "bacon", "lettuce", "breadTop"], kind: "Process — do this action" },
+      { id: "press", layer: "breadTop", built: ["plate", "breadBottom", "bacon", "lettuce", "breadTop"], assemble: true, kind: "Process — do this action" },
+      { id: "cut", layer: null, built: ["plate", "breadBottom", "bacon", "lettuce", "breadTop"], assemble: true, kind: "Decision — choose one path" },
+      { id: "cutYes", layer: null, built: ["plate", "breadBottom", "bacon", "lettuce", "breadTop"], assemble: true, kind: "Process — do this action" },
+      { id: "cutNo", layer: null, built: ["plate", "breadBottom", "bacon", "lettuce", "breadTop"], assemble: true, kind: "Process — do this action" },
+      { id: "done", layer: null, built: ["plate", "breadBottom", "bacon", "lettuce", "breadTop"], assemble: true, kind: "Start / End — the algorithm finishes" }
+    ];
+    let stepIndex = 0;
+
+    /** Run one algorithm step: highlight the box and update the 3D scene. */
+    function showStep(i) {
+      stepIndex = Math.max(0, Math.min(STEPS.length - 1, i));
+      const step = STEPS[stepIndex];
+      if (step.id === "tomato") skipTomato = false;
+      if (step.id === "tomatoSkip") skipTomato = true;
+      if (step.id === "toastYes") setToasted(true);
+      if (step.id === "toastNo") setToasted(false);
+      currentBuilt = step.built.slice();
+      if (!skipTomato && ["lettuce", "breadTop", "press", "cut", "cutYes", "cutNo", "done"].includes(step.id)) {
+        if (!currentBuilt.includes("tomato")) currentBuilt.splice(3, 0, "tomato");
+      }
+      if (skipTomato) currentBuilt = currentBuilt.filter((k) => k !== "tomato");
+      pantryOut = step.id !== "start";
+      const tableReady = step.id !== "start" && step.id !== "hands";
+      document.querySelectorAll("#algo .node").forEach((n) => n.classList.toggle("on", n.dataset.step === step.id));
+      const hint = document.getElementById("stepHint");
+      const active = document.querySelector("#algo .node.on");
+      if (hint) {
+        const title = active ? active.textContent.trim() : step.id;
+        hint.innerHTML = `<b>Step ${stepIndex + 1} of ${STEPS.length}</b><br>${title}<small>${step.kind || ""}</small>`;
+      }
+      Object.entries(layers).forEach(([key, layer]) => {
+        const visible = key === "plate" ? tableReady : (pantryOut && !!MISE[key]);
+        layer.obj.visible = visible;
+        const onPlate = step.built.includes(key);
+        const opacity = !visible ? 0 : (step.layer === key || (!step.layer && onPlate) ? 1 : 0.85);
+        layer.obj.traverse((child) => {
+          if (child.isMesh) {
+            child.material.transparent = true;
+            child.material.opacity = opacity;
+          }
+        });
+      });
+      if (step.assemble) {
+        explode = 0;
+        slider.value = 0;
+      } else if (step.built.length) {
+        explode = 0.70;
+        slider.value = 70;
+      }
+      if (step.id === "cutYes") sandwichSplit = true;
+      if (step.id === "cutNo") sandwichSplit = false;
+      if (step.id === "start") {
+        sandwichSplit = false;
+        skipTomato = false;
+        setToasted(false);
+        resetBacon();
+      }
+      cutting = step.id === "cutYes";
+      if (cutting) {
+        explode = 0;
+        slider.value = 0;
+        placeLayers();
+        rebuildHalves();
+        cutAnim = 0;
+        cutStartedAt = performance.now();
+        FOOD.forEach((key) => { layers[key].obj.visible = false; });
+        leftHold.visible = true;
+        rightHold.visible = true;
+        leftHold.position.set(0, 0, 0);
+        rightHold.position.set(0, 0, 0);
+        knife.visible = true;
+        knife.position.set(0, 3.35, 2.8);
+        knife.traverse((ch) => {
+          if (ch.isMesh) { ch.material.transparent = true; ch.material.opacity = 1; }
+        });
+      } else if (step.id === "done" && sandwichSplit) {
+        explode = 0;
+        slider.value = 0;
+        placeLayers();
+        FOOD.forEach((key) => { layers[key].obj.visible = false; });
+        if (!leftHold.children.length) rebuildHalves();
+        leftHold.visible = true;
+        rightHold.visible = true;
+        leftHold.position.x = -SPLIT_GAP;
+        rightHold.position.x = SPLIT_GAP;
+        knife.visible = true;
+        knife.position.copy(knifeRest);
+        knife.traverse((ch) => {
+          if (ch.isMesh) { ch.material.transparent = true; ch.material.opacity = 1; }
+        });
+        cutAnim = 0;
+      } else {
+        leftHold.visible = false;
+        rightHold.visible = false;
+        cutAnim = 0;
+        if (tableReady) {
+          knife.visible = true;
+          knife.position.copy(knifeRest);
+          knife.traverse((ch) => {
+            if (ch.isMesh) { ch.material.transparent = true; ch.material.opacity = 1; }
+          });
+        } else {
+          knife.visible = false;
+        }
+      }
+      placeLayers();
+      syncButtons();
+    }
+
+    const baconBaseCount = layers.bacon.obj.children.length;
+    let baconAdds = 0;
+    /** Remove extra bacon added by the "Enough bacon? No" loop. */
+    function resetBacon() {
+      baconAdds = 0;
+      const g = layers.bacon.obj;
+      while (g.children.length > baconBaseCount) {
+        const ch = g.children[g.children.length - 1];
+        g.remove(ch);
+        if (ch.geometry) ch.geometry.dispose();
+      }
+    }
+    /** Clone more rashers when the bacon loop repeats. */
+    function addMoreBacon() {
+      if (baconAdds >= 3) return;
+      baconAdds += 1;
+      const g = layers.bacon.obj;
+      const base = g.children.slice(0, 16);
+      base.forEach((ch, i) => {
+        const c = ch.clone(true);
+        c.position.x += baconAdds * (i % 2 ? 0.12 : -0.1);
+        c.position.y += 0.09 * baconAdds;
+        c.rotation.y += 0.28 * baconAdds;
+        g.add(c);
+      });
+    }
+
+    document.getElementById("nextStep").onclick = () => {
+      const id = STEPS[stepIndex].id;
+      if (id === "prep") showStep(STEPS.findIndex((s) => s.id === "toastAsk"));
+      else if (id === "toastAsk") showStep(STEPS.findIndex((s) => s.id === "toastYes"));
+      else if (id === "toastYes" || id === "toastNo") showStep(STEPS.findIndex((s) => s.id === "breadBottom"));
+      else if (id === "bacon") showStep(STEPS.findIndex((s) => s.id === "baconEnough"));
+      else if (id === "baconEnough") showStep(STEPS.findIndex((s) => s.id === "tomatoAsk"));
+      else if (id === "tomatoAsk") showStep(STEPS.findIndex((s) => s.id === "tomato"));
+      else if (id === "tomato" || id === "tomatoSkip") showStep(STEPS.findIndex((s) => s.id === "lettuce"));
+      else if (id === "cut" || id === "cutYes" || id === "cutNo") {
+        showStep(STEPS.findIndex((s) => s.id === "done"));
+      } else {
+        showStep(stepIndex + 1);
+      }
+    };
+    document.getElementById("prevStep").onclick = () => showStep(stepIndex - 1);
+    document.getElementById("replay").onclick = () => showStep(0);
+    document.querySelectorAll("#algo .node").forEach((n) => {
+      n.onclick = () => {
+        if (n.dataset.step === "bacon" && STEPS[stepIndex].id === "baconEnough") {
+          addMoreBacon();
+        }
+        const idx = STEPS.findIndex((s) => s.id === n.dataset.step);
+        if (idx >= 0) showStep(idx);
+      };
+    });
+    showStep(0);
+
+    /** Keep the 3D canvas the same size as its panel. */
+    function resize() {
+      const w = wrap.clientWidth, h = Math.max(wrap.clientHeight, 1);
+      camera.aspect = w / h; camera.updateProjectionMatrix(); renderer.setSize(w, h);
+    }
+    window.addEventListener("resize", resize); resize();
+    (function tick(){
+      if (cutting) {
+        const t = (performance.now() - cutStartedAt) / 1000;
+        const setOpacity = (o) => {
+          knife.visible = o > 0.02;
+          knife.traverse((ch) => {
+            if (ch.isMesh) { ch.material.transparent = true; ch.material.opacity = o; }
+          });
+        };
+        if (t < 1.15) {
+          const p = t / 1.15;
+          knife.position.set(0, 3.35 - p * 3.15, 2.8);
+          setOpacity(1);
+        } else if (t < 1.45) {
+          knife.position.set(0, 0.2, 2.8);
+          setOpacity(1 - (t - 1.15) / 0.3);
+        } else if (t < 1.7) {
+          knife.position.copy(knifeRest);
+          setOpacity(0);
+        } else if (t < 2.0) {
+          knife.position.copy(knifeRest);
+          setOpacity((t - 1.7) / 0.3);
+        } else {
+          knife.position.copy(knifeRest);
+          setOpacity(1);
+        }
+        const gap = Math.max(0, Math.min(1, (t - 0.35) / 0.7)) * SPLIT_GAP;
+        leftHold.position.x = -gap;
+        rightHold.position.x = gap;
+      }
+      controls.update();
+      renderer.render(scene, camera);
+      requestAnimationFrame(tick);
+    })();
+  </script>
+</body>
+</html>

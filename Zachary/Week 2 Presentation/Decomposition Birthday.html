@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Birthday Party Planner - Interactive Decomposition Tree</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a;
+            color: #f8fafc;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        /* Viewport & Canvas styling */
+        #viewport {
+            width: 100vw;
+            height: calc(100vh - 110px);
+            cursor: grab;
+            overflow: hidden;
+            position: relative;
+            background-color: #0b0f19;
+            background-image: radial-gradient(#1e293b 1.5px, transparent 1.5px);
+            background-size: 28px 28px;
+        }
+
+        #viewport:active {
+            cursor: grabbing;
+        }
+
+        #canvas {
+            position: absolute;
+            transform-origin: 0 0;
+            top: 0;
+            left: 0;
+            width: 12000px;
+            height: 12000px;
+        }
+
+        /* Connecting SVG Lines Layer */
+        #svg-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .tree-line {
+            fill: none;
+            stroke: #475569;
+            stroke-width: 2.5px;
+            stroke-linejoin: round;
+            stroke-linecap: round;
+            transition: stroke 0.2s, stroke-width 0.2s;
+        }
+
+        /* Node Elements Styling */
+        .node-container {
+            position: absolute;
+            z-index: 20;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            transition: transform 0.2s cubic-bezier(0.2, 0, 0.2, 1);
+        }
+
+        .node-card {
+            border-radius: 8px;
+            padding: 10px 14px;
+            font-size: 13.5px;
+            font-weight: 600;
+            text-align: center;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.3);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            line-height: 1.35;
+            border: 1.5px solid transparent;
+            word-break: break-word;
+        }
+
+        .node-card:hover {
+            transform: translateY(-2px) scale(1.02);
+            box-shadow: 0 8px 22px rgba(0, 0, 0, 0.7);
+        }
+
+        /* Color Coding based on reference specs */
+        /* Root Node: Orange (#ea580c) */
+        .node-root {
+            background: linear-gradient(135deg, #ea580c 0%, #c2410c 100%);
+            color: #ffffff;
+            border-color: #ffedd5;
+            font-size: 16px;
+            font-weight: 800;
+            padding: 14px 24px;
+            border-radius: 10px;
+        }
+
+        /* Major Classes & Subproblems: Dark Blue (#1e3a8a / #1d4ed8) */
+        .node-major {
+            background: linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 100%);
+            color: #ffffff;
+            border-color: #93c5fd;
+            font-size: 14.5px;
+            font-weight: 700;
+            padding: 12px 18px;
+        }
+
+        .node-subproblem {
+            background: linear-gradient(135deg, #1e293b 0%, #1e3a8a 100%);
+            color: #ffffff;
+            border-color: #60a5fa;
+            font-size: 13.5px;
+            font-weight: 600;
+        }
+
+        /* Action Steps / Special Highlight */
+        .node-action-orange {
+            background: linear-gradient(135deg, #ea580c 0%, #9a3412 100%);
+            color: #ffffff;
+            border-color: #fed7aa;
+            font-size: 13.5px;
+            font-weight: 700;
+        }
+
+        /* Tasks / Leaf Nodes: Yellow (#fef08a) with dark readable text */
+        .node-leaf {
+            background: linear-gradient(135deg, #fef08a 0%, #fde047 100%);
+            color: #0f172a;
+            border-color: #facc15;
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        /* Toggle Badge for expanding/collapsing */
+        .toggle-badge {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: rgba(0, 0, 0, 0.4);
+            color: #ffffff;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: bold;
+            margin-left: 4px;
+            flex-shrink: 0;
+            border: 1px solid rgba(255, 255, 255, 0.4);
+        }
+
+        /* Search Match Pulsing Effect */
+        .search-match {
+            outline: 3px solid #ef4444 !important;
+            box-shadow: 0 0 25px #ef4444 !important;
+            animation: pulseMatch 1.2s infinite alternate;
+        }
+
+        @keyframes pulseMatch {
+            0% { transform: scale(1); }
+            100% { transform: scale(1.08); }
+        }
+    </style>
+</head>
+<body class="h-screen w-screen flex flex-col justify-between select-none">
+
+    <!-- TOP NAVIGATION BAR -->
+    <header class="bg-slate-900 border-b border-slate-800 px-6 py-3 shadow-lg z-50 text-white flex flex-wrap items-center justify-between gap-4">
+        <div class="flex items-center gap-3">
+            <span class="text-3xl">🎂</span>
+            <div>
+                <h1 class="text-xl font-extrabold text-orange-500 leading-tight">Birthday Party Planner</h1>
+                <p class="text-xs text-slate-400 font-medium">Computational Thinking Decomposition Tree Map</p>
+            </div>
+        </div>
+
+        <!-- SEARCH BAR -->
+        <div class="relative min-w-[280px] sm:min-w-[360px]">
+            <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+            <input id="search-input" type="text" placeholder="Search tasks (e.g., cake, RSVP, appetizers)..."
+                class="w-full pl-9 pr-8 py-2 bg-slate-800 text-slate-100 text-xs rounded-lg border border-slate-700 focus:outline-none focus:border-orange-500 transition placeholder-slate-500" />
+            <button id="search-clear" class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-xs">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+
+        <!-- LEGEND -->
+        <div class="hidden lg:flex items-center gap-2 text-xs">
+            <span class="px-2.5 py-1 rounded-md bg-orange-600 text-white font-bold">Root</span>
+            <span class="px-2.5 py-1 rounded-md bg-blue-900 border border-blue-500 text-white font-semibold">Major Classes</span>
+            <span class="px-2.5 py-1 rounded-md bg-yellow-300 text-slate-900 font-bold">Tasks / Items</span>
+        </div>
+    </header>
+
+    <!-- ACTION CONTROLS TOOLBAR -->
+    <div class="bg-slate-900/90 backdrop-blur border-b border-slate-800 px-6 py-2 flex flex-wrap items-center justify-between text-xs z-40 text-slate-200 gap-2">
+        <div class="flex items-center gap-2 flex-wrap">
+            <button id="btn-expand-all" class="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg border border-slate-700 font-medium transition active:scale-95">
+                <i class="fa-solid fa-folder-open text-orange-400"></i> Expand All
+            </button>
+            <button id="btn-collapse-all" class="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg border border-slate-700 font-medium transition active:scale-95">
+                <i class="fa-solid fa-folder text-slate-400"></i> Collapse All
+            </button>
+            <div class="h-4 w-px bg-slate-700 mx-1"></div>
+            <button id="btn-reset" class="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg border border-slate-700 font-medium transition active:scale-95">
+                <i class="fa-solid fa-rotate-left text-sky-400"></i> Reset View
+            </button>
+            <button id="btn-fit" class="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg border border-slate-700 font-medium transition active:scale-95">
+                <i class="fa-solid fa-expand text-emerald-400"></i> Fit Screen
+            </button>
+        </div>
+
+        <!-- ZOOM LEVEL CONTROLS -->
+        <div class="flex items-center gap-3">
+            <span id="zoom-indicator" class="font-mono text-slate-400 font-semibold">100%</span>
+            <div class="flex items-center bg-slate-800 rounded-lg border border-slate-700">
+                <button id="btn-zoom-out" class="px-3 py-1.5 hover:bg-slate-700 rounded-l-lg transition active:scale-95">
+                    <i class="fa-solid fa-minus text-slate-300"></i>
+                </button>
+                <button id="btn-zoom-in" class="px-3 py-1.5 hover:bg-slate-700 rounded-r-lg transition active:scale-95">
+                    <i class="fa-solid fa-plus text-slate-300"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- CANVAS VIEWPORT -->
+    <main id="viewport">
+        <div id="canvas">
+            <svg id="svg-layer"></svg>
+            <div id="nodes-layer"></div>
+        </div>
+    </main>
+
+    <script>
+        /**
+         * FULL COMPREHENSIVE DECOMPOSITION TREE DATA STRUCTURE
+         * Contains exact corrections for Food & Drinks -> Procure items branch
+         */
+        const treeData = {
+            id: "root",
+            title: "Plan a Birthday Party",
+            type: "root",
+            expanded: true,
+            children: [
+                {
+                    id: "date_time",
+                    title: "Date & Time",
+                    type: "major",
+                    expanded: true,
+                    children: [
+                        {
+                            id: "dt_sched",
+                            title: "Determine optimal scheduling",
+                            type: "subproblem",
+                            expanded: true,
+                            children: [
+                                {
+                                    id: "dt_avail",
+                                    title: "Determine availability",
+                                    type: "subproblem",
+                                    expanded: true,
+                                    children: [
+                                        {
+                                            id: "dt_check_venue",
+                                            title: "Check venue availability",
+                                            type: "subproblem",
+                                            expanded: true,
+                                            children: [
+                                                { id: "dt_confirm_date", title: "Confirm date & time", type: "leaf" }
+                                            ]
+                                        },
+                                        {
+                                            id: "dt_identify_venues",
+                                            title: "Identify potential venues (if needed)",
+                                            type: "subproblem",
+                                            expanded: true,
+                                            children: [
+                                                { id: "dt_site_visits", title: "Schedule site visits", type: "leaf" }
+                                            ]
+                                        }
+                                    ]
+                                },
+                                {
+                                    id: "dt_pick_date",
+                                    title: "Pick specific date",
+                                    type: "subproblem",
+                                    expanded: true,
+                                    children: [
+                                        { id: "dt_find_bday", title: "Find birthday date", type: "leaf" },
+                                        { id: "dt_check_day", title: "Check day of week", type: "leaf" },
+                                        { id: "dt_choose_time", title: "Choose party time", type: "leaf" }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    id: "guests",
+                    title: "Guests",
+                    type: "major",
+                    expanded: true,
+                    children: [
+                        {
+                            id: "g_list_creation",
+                            title: "Guest List Creation",
+                            type: "subproblem",
+                            expanded: true,
+                            children: [
+                                { id: "g_create_list", title: "Create guest list", type: "leaf" },
+                                { id: "g_decide_num", title: "Decide number of guests", type: "leaf" },
+                                { id: "g_collect_contacts", title: "Collect contacts", type: "leaf" },
+                                { id: "g_track_rsvps", title: "Track RSVPs", type: "leaf" },
+                                {
+                                    id: "g_send_invites",
+                                    title: "Send invitations ↓",
+                                    type: "action",
+                                    expanded: true,
+                                    children: [
+                                        {
+                                            id: "g_draft_content",
+                                            title: "Draft Invitation Content",
+                                            type: "subproblem",
+                                            expanded: true,
+                                            children: [
+                                                { id: "g_write_intro", title: "Write unique intro/body", type: "leaf" },
+                                                { id: "g_add_rsvp_details", title: "Add RSVP details (email/link/deadline)", type: "leaf" },
+                                                { id: "g_proofread", title: "Proofread carefully", type: "leaf" },
+                                                {
+                                                    id: "g_select_dist",
+                                                    title: "Select distribution method",
+                                                    type: "subproblem",
+                                                    expanded: true,
+                                                    children: [
+                                                        { id: "g_csv", title: "Compile final guest list CSV", type: "leaf" },
+                                                        { id: "g_email_service", title: "Choose email service (e.g., Evite)", type: "leaf" },
+                                                        { id: "g_postal", title: "Set up postal delivery (for physical cards)", type: "leaf" }
+                                                    ]
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            id: "g_prep_invite",
+                                            title: "Prepare invitation",
+                                            type: "subproblem",
+                                            expanded: true,
+                                            children: [
+                                                { id: "g_create_inv", title: "Create invitation", type: "leaf" },
+                                                { id: "g_add_dt", title: "Add date and time", type: "leaf" },
+                                                { id: "g_add_loc", title: "Add location", type: "leaf" },
+                                                { id: "g_add_rsvp_info", title: "Add RSVP information", type: "leaf" },
+                                                {
+                                                    id: "g_exec_delivery",
+                                                    title: "Execute delivery",
+                                                    type: "subproblem",
+                                                    expanded: true,
+                                                    children: [
+                                                        { id: "g_add_gfx", title: "Add images & color graphics", type: "leaf" },
+                                                        { id: "g_send_inv", title: "Send invitation", type: "leaf" },
+                                                        { id: "g_reminders", title: "Set RSVP reminders", type: "leaf" },
+                                                        { id: "g_record_resp", title: "Record responses", type: "leaf" }
+                                                    ]
+                                                }
+                                            ]
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    id: "location",
+                    title: "Location",
+                    type: "major",
+                    expanded: true,
+                    children: [
+                        {
+                            id: "loc_select_scout",
+                            title: "Select and scout location",
+                            type: "subproblem",
+                            expanded: true,
+                            children: [
+                                { id: "loc_choose", title: "Choose location", type: "leaf" },
+                                { id: "loc_check_avail", title: "Check availability", type: "leaf" },
+                                { id: "loc_check_cap", title: "Check capacity", type: "leaf" },
+                                {
+                                    id: "loc_logistics",
+                                    title: "Logistics",
+                                    type: "subproblem",
+                                    expanded: true,
+                                    children: [
+                                        { id: "loc_parking", title: "Determine parking availability", type: "leaf" },
+                                        { id: "loc_check_cost", title: "Check cost", type: "leaf" },
+                                        { id: "loc_book_v", title: "Book venue", type: "leaf" },
+                                        { id: "loc_transport", title: "Book guest transport (optional)", type: "leaf" },
+                                        { id: "loc_decor_sched", title: "Plan decor setup/tear-down schedule", type: "leaf" },
+                                        { id: "loc_check_cap_2", title: "Check capacity", type: "leaf" },
+                                        { id: "loc_catering_req", title: "Verify with catering requirements", type: "leaf" }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    id: "food_drinks",
+                    title: "Food & Drinks",
+                    type: "major",
+                    expanded: true,
+                    children: [
+                        {
+                            id: "fd_menu_select",
+                            title: "Menu selection",
+                            type: "subproblem",
+                            expanded: true,
+                            children: [
+                                { id: "fd_decide_menu", title: "Decide menu", type: "leaf" },
+                                { id: "fd_dietary", title: "Dietary needs", type: "leaf" },
+                                {
+                                    id: "fd_procure_items",
+                                    title: "Procure items",
+                                    type: "subproblem",
+                                    expanded: true,
+                                    children: [
+                                        { id: "fd_buy_food", title: "Buy/order food", type: "leaf" },
+                                        { id: "fd_buy_drinks", title: "Buy drinks", type: "leaf" },
+                                        {
+                                            id: "fd_order_cake",
+                                            title: "Order cake ↓",
+                                            type: "action",
+                                            expanded: true,
+                                            children: [
+                                                {
+                                                    id: "fd_procure_cake",
+                                                    title: "Procure cake",
+                                                    type: "subproblem",
+                                                    expanded: true,
+                                                    children: [
+                                                        { id: "fd_bakery", title: "Find bakery", type: "leaf" },
+                                                        { id: "fd_check_price", title: "Check price", type: "leaf" },
+                                                        { id: "fd_place_order", title: "Place order", type: "leaf" },
+                                                        { id: "fd_arrange_deliv", title: "Arrange collection/delivery", type: "leaf" }
+                                                    ]
+                                                }
+                                            ]
+                                        },
+                                        /* Corrected 7 Direct Decomposition Tasks under Procure items */
+                                        { id: "fd_appetizers", title: "Finalize appetizers & hors d'oeuvres", type: "leaf" },
+                                        { id: "fd_mains", title: "Choose specific main courses", type: "leaf" },
+                                        { id: "fd_inventory_drinks", title: "Inventory existing drinks list", type: "leaf" },
+                                        { id: "fd_sides", title: "Select side dishes & accompaniments", type: "leaf" },
+                                        { id: "fd_types_drinks", title: "Specify types: alcohol, soft, water", type: "leaf" },
+                                        { id: "fd_dessert_specs", title: "Choose dessert & cake specifications", type: "leaf" },
+                                        { id: "fd_sched_deliv", title: "Schedule delivery time", type: "leaf" }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    id: "decor_fun",
+                    title: "Decor & Fun",
+                    type: "major",
+                    expanded: true,
+                    children: [
+                        {
+                            id: "df_theme_visuals",
+                            title: "Theme and visuals",
+                            type: "subproblem",
+                            expanded: true,
+                            children: [
+                                { id: "df_choose_theme", title: "Choose theme", type: "leaf" },
+                                {
+                                    id: "df_activities",
+                                    title: "Activities",
+                                    type: "subproblem",
+                                    expanded: true,
+                                    children: [
+                                        {
+                                            id: "df_source_supplies",
+                                            title: "Source Game Supplies",
+                                            type: "subproblem",
+                                            expanded: true,
+                                            children: [
+                                                { id: "df_shop_mat", title: "Shop for game materials", type: "leaf" }
+                                            ]
+                                        },
+                                        { id: "df_plan_games", title: "Plan games", type: "leaf" },
+                                        { id: "df_plan_music", title: "Plan music", type: "leaf" },
+                                        {
+                                            id: "df_music_playlist",
+                                            title: "Create Music Playlist",
+                                            type: "subproblem",
+                                            expanded: true,
+                                            children: [
+                                                { id: "df_key_tracks", title: "Select key party tracks", type: "leaf" },
+                                                { id: "df_speaker_sys", title: "Check speaker system", type: "leaf" }
+                                            ]
+                                        },
+                                        {
+                                            id: "df_plan_ent",
+                                            title: "Plan entertainment",
+                                            type: "subproblem",
+                                            expanded: true,
+                                            children: [
+                                                { id: "df_review_ent", title: "Review entertainer portfolio/reviews", type: "leaf" },
+                                                { id: "df_sign_contract", title: "Sign contract", type: "leaf" },
+                                                { id: "df_coord_times", title: "Coordinate start/end times", type: "leaf" }
+                                            ]
+                                        },
+                                        {
+                                            id: "df_decor_branch",
+                                            title: "Decor",
+                                            type: "subproblem",
+                                            expanded: true,
+                                            children: [
+                                                { id: "df_shop_list", title: "Finalize shopping list", type: "leaf" },
+                                                { id: "df_coord_decor", title: "Coordinate decor theme implementation", type: "leaf" }
+                                            ]
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    id: "budget",
+                    title: "Budget",
+                    type: "major",
+                    expanded: true,
+                    children: [
+                        { id: "b_set_total", title: "Set total budget", type: "leaf" },
+                        {
+                            id: "b_est_costs",
+                            title: "Estimate individual costs",
+                            type: "subproblem",
+                            expanded: true,
+                            children: [
+                                { id: "b_venue", title: "Est. Venue Rental", type: "leaf" },
+                                { id: "b_catering", title: "Est. Catering & Food", type: "leaf" },
+                                { id: "b_decor", title: "Est. Specific Decor", type: "leaf" },
+                                { id: "b_ent", title: "Est. Specific Entertainment", type: "leaf" },
+                                { id: "b_invites", title: "Est. Invitation & Print", type: "leaf" },
+                                { id: "b_misc", title: "Est. Miscellaneous Fees", type: "leaf" },
+                                {
+                                    id: "b_check_rem",
+                                    title: "Check remaining budget",
+                                    type: "subproblem",
+                                    expanded: true,
+                                    children: [
+                                        { id: "b_compare", title: "Compare with original set total budget", type: "leaf" }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        };
+
+        // Global State Variables
+        let zoom = 0.8;
+        let panX = 60;
+        let panY = 40;
+        let isDragging = false;
+        let startX = 0;
+        let startY = 0;
+        let matchingNodeIds = new Set();
+
+        const viewport = document.getElementById('viewport');
+        const canvas = document.getElementById('canvas');
+        const svgLayer = document.getElementById('svg-layer');
+        const nodesLayer = document.getElementById('nodes-layer');
+
+        // Spacing & Sizing Constants
+        const NODE_WIDTH = 200;
+        const NODE_HEIGHT = 44;
+        const H_GAP = 28;
+        const V_GAP = 52;
+
+        /**
+         * Tree layout algorithm calculating exact X positions
+         */
+        function computeLayout(node, depth = 0, xOffset = 0) {
+            node.width = NODE_WIDTH;
+            node.height = NODE_HEIGHT;
+            node.depth = depth;
+
+            if (!node.expanded || !node.children || node.children.length === 0) {
+                node.treeWidth = NODE_WIDTH;
+                node.x = xOffset;
+                return node.treeWidth;
+            }
+
+            let currentX = xOffset;
+            let totalChildrenWidth = 0;
+
+            node.children.forEach((child) => {
+                const childWidth = computeLayout(child, depth + 1, currentX);
+                currentX += childWidth + H_GAP;
+                totalChildrenWidth += childWidth;
+            });
+
+            totalChildrenWidth += (node.children.length - 1) * H_GAP;
+            node.treeWidth = Math.max(NODE_WIDTH, totalChildrenWidth);
+            node.x = xOffset + (node.treeWidth - NODE_WIDTH) / 2;
+
+            return node.treeWidth;
+        }
+
+        /**
+         * Assigns Y depth coordinates based on hierarchy level
+         */
+        function assignYPositions(node, currentY = 40) {
+            node.y = currentY;
+            if (node.expanded && node.children) {
+                node.children.forEach(child => {
+                    assignYPositions(child, currentY + NODE_HEIGHT + V_GAP);
+                });
+            }
+        }
+
+        /**
+         * Main Render Function
+         */
+        function renderTree() {
+            computeLayout(treeData, 0, 80);
+            assignYPositions(treeData, 40);
+
+            nodesLayer.innerHTML = '';
+            svgLayer.innerHTML = '';
+
+            const visibleNodes = [];
+            const connections = [];
+
+            function traverse(node) {
+                visibleNodes.push(node);
+                if (node.expanded && node.children) {
+                    node.children.forEach(child => {
+                        connections.push({ parent: node, child: child });
+                        traverse(child);
+                    });
+                }
+            }
+            traverse(treeData);
+
+            // Render Node Cards
+            visibleNodes.forEach(node => {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'node-container';
+                wrapper.style.left = `${node.x}px`;
+                wrapper.style.top = `${node.y}px`;
+                wrapper.style.width = `${NODE_WIDTH}px`;
+
+                const card = document.createElement('div');
+                let typeClass = 'node-subproblem';
+                if (node.type === 'root') typeClass = 'node-root';
+                else if (node.type === 'major') typeClass = 'node-major';
+                else if (node.type === 'action') typeClass = 'node-action-orange';
+                else if (node.type === 'leaf') typeClass = 'node-leaf';
+
+                card.className = `node-card ${typeClass} ${matchingNodeIds.has(node.id) ? 'search-match' : ''}`;
+                card.innerText = node.title;
+
+                const hasChildren = node.children && node.children.length > 0;
+                if (hasChildren) {
+                    const toggle = document.createElement('span');
+                    toggle.className = 'toggle-badge';
+                    toggle.innerText = node.expanded ? '−' : '+';
+                    card.appendChild(toggle);
+
+                    card.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        node.expanded = !node.expanded;
+                        renderTree();
+                    });
+                }
+
+                wrapper.appendChild(card);
+                nodesLayer.appendChild(wrapper);
+            });
+
+            // Render Orthogonal Connectors
+            connections.forEach(conn => {
+                const px = conn.parent.x + NODE_WIDTH / 2;
+                const py = conn.parent.y + NODE_HEIGHT;
+                const cx = conn.child.x + NODE_WIDTH / 2;
+                const cy = conn.child.y;
+
+                const midY = py + (cy - py) / 2;
+                const pathData = `M ${px} ${py} V ${midY} H ${cx} V ${cy}`;
+
+                const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                path.setAttribute('d', pathData);
+                path.setAttribute('class', 'tree-line');
+                svgLayer.appendChild(path);
+            });
+
+            updateTransform();
+        }
+
+        function updateTransform() {
+            canvas.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
+            document.getElementById('zoom-indicator').innerText = `${Math.round(zoom * 100)}%`;
+        }
+
+        const searchInput = document.getElementById('search-input');
+        const searchClear = document.getElementById('search-clear');
+
+        function searchNodes(query) {
+            matchingNodeIds.clear();
+            if (!query.trim()) {
+                searchClear.classList.add('hidden');
+                renderTree();
+                return;
+            }
+
+            searchClear.classList.remove('hidden');
+            const q = query.toLowerCase();
+
+            function findAndExpand(node) {
+                let isMatch = node.title.toLowerCase().includes(q);
+                let childMatched = false;
+
+                if (node.children) {
+                    node.children.forEach(child => {
+                        if (findAndExpand(child)) childMatched = true;
+                    });
+                }
+
+                if (isMatch) matchingNodeIds.add(node.id);
+                if (childMatched) node.expanded = true;
+
+                return isMatch || childMatched;
+            }
+
+            findAndExpand(treeData);
+            renderTree();
+        }
+
+        searchInput.addEventListener('input', (e) => searchNodes(e.target.value));
+        searchClear.addEventListener('click', () => {
+            searchInput.value = '';
+            searchNodes('');
+        });
+
+        function setExpandedAll(node, state) {
+            if (node.children) {
+                node.expanded = state;
+                node.children.forEach(child => setExpandedAll(child, state));
+            }
+        }
+
+        document.getElementById('btn-expand-all').addEventListener('click', () => {
+            setExpandedAll(treeData, true);
+            renderTree();
+        });
+
+        document.getElementById('btn-collapse-all').addEventListener('click', () => {
+            setExpandedAll(treeData, false);
+            treeData.expanded = true;
+            renderTree();
+        });
+
+        document.getElementById('btn-reset').addEventListener('click', () => {
+            zoom = 0.8;
+            panX = 60;
+            panY = 40;
+            updateTransform();
+        });
+
+        document.getElementById('btn-fit').addEventListener('click', () => {
+            const viewportWidth = viewport.clientWidth;
+            const treeWidth = treeData.treeWidth || 2800;
+            zoom = Math.min(Math.max(viewportWidth / (treeWidth + 180), 0.3), 0.95);
+            panX = (viewportWidth - treeWidth * zoom) / 2;
+            panY = 30;
+            updateTransform();
+        });
+
+        document.getElementById('btn-zoom-in').addEventListener('click', () => {
+            zoom = Math.min(zoom + 0.15, 1.8);
+            updateTransform();
+        });
+
+        document.getElementById('btn-zoom-out').addEventListener('click', () => {
+            zoom = Math.max(zoom - 0.15, 0.25);
+            updateTransform();
+        });
+
+        // Interactive Mouse Pan & Wheel Zoom Events
+        viewport.addEventListener('mousedown', (e) => {
+            if (e.target.closest('.node-card')) return;
+            isDragging = true;
+            startX = e.clientX - panX;
+            startY = e.clientY - panY;
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            panX = e.clientX - startX;
+            panY = e.clientY - startY;
+            updateTransform();
+        });
+
+        window.addEventListener('mouseup', () => isDragging = false);
+
+        viewport.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const delta = e.deltaY < 0 ? 0.08 : -0.08;
+            zoom = Math.min(Math.max(zoom + delta, 0.2), 1.8);
+            updateTransform();
+        }, { passive: false });
+
+        window.onload = function() {
+            renderTree();
+        };
+    </script>
+</body>
+</html>

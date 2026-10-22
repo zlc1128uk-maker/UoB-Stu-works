@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Abstraction: Finding your favourite restaurant</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <!--
+    Abstraction demo
+    ----------------
+    Layout: map (top-left), phase controls (bottom-left), instructions (right).
+    Three phases share one walking route. Only the written steps and markers change.
+
+    Before  = every turn a maps app would store
+    During  = filter: strike the noise, keep landmarks
+    After   = summarise: three lines a friend can remember
+  -->
+  <style>
+    /* ------------------------------------------------------------------ */
+    /* Design tokens                                                       */
+    /* ------------------------------------------------------------------ */
+    :root {
+      --ink: #1b1916;
+      --muted: #6d655c;
+      --bg: #efe7dc;
+      --paper: #fffaf3;
+      --line: #e4d9cc;
+      --accent: #c45c26;   /* drop / highlight */
+      --teal: #2f6f6a;     /* keep / after */
+      --route: #1a73e8;    /* map line + default numbers */
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100dvh; margin: 0; overflow: hidden; }
+    body {
+      background: var(--bg);
+      color: var(--ink);
+      font-family: "Segoe UI", system-ui, sans-serif;
+    }
+    button { cursor: pointer; font-family: inherit; }
+
+    /* ------------------------------------------------------------------ */
+    /* Page grid                                                           */
+    /* ------------------------------------------------------------------ */
+    .app {
+      display: grid;
+      grid-template-columns: minmax(240px, 1fr) minmax(240px, 1fr);
+      grid-template-rows: 1fr 16.75rem;
+      height: 100dvh;
+      overflow: hidden;
+    }
+    .map-pane {
+      grid-column: 1;
+      grid-row: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid var(--line);
+    }
+    .stage-pane {
+      grid-column: 1;
+      grid-row: 2;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      padding: 10px 14px 12px;
+      background: var(--paper);
+      border-top: 1px solid var(--line);
+      border-right: 1px solid var(--line);
+    }
+    .list-pane {
+      grid-column: 2;
+      grid-row: 1 / span 2;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      background: var(--paper);
+      overflow: hidden;
+    }
+
+    /* ------------------------------------------------------------------ */
+    /* Map chrome                                                          */
+    /* ------------------------------------------------------------------ */
+    .map-wrap { position: relative; flex: 1; min-height: 0; background: #1b1b1b; }
+    #map { width: 100%; height: 100%; }
+
+    .gbar {
+      position: absolute;
+      left: 12px;
+      right: 12px;
+      top: 12px;
+      z-index: 500;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px 10px;
+      min-height: 40px;
+      padding: 4px 8px 4px 14px;
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(60, 64, 67, .28);
+      font-size: clamp(0.75rem, 1.4vw, 0.88rem);
+      color: #3c4043;
+    }
+    .gbar span.place { flex: 1; min-width: 0; }
+    .gdot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--route);
+      flex-shrink: 0;
+    }
+    .zoom {
+      display: flex;
+      border-left: 1px solid #e4e4e4;
+      flex-shrink: 0;
+    }
+    .zoom button {
+      width: 36px;
+      height: 32px;
+      border: 0;
+      background: transparent;
+      font-size: 18px;
+      font-weight: 700;
+      color: #5f6368;
+      line-height: 1;
+    }
+    .zoom button + button { border-left: 1px solid #e4e4e4; }
+    .zoom button:hover { color: #1a73e8; }
+
+    /* Fixed width so Satellite / Streets / Topo do not resize the bar */
+    .style-pick {
+      flex-shrink: 0;
+      width: 5.2rem;
+      min-width: 5.2rem;
+      padding: 5px 8px;
+      border: 1px solid #dadce0;
+      border-radius: 6px;
+      background: #fff;
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: #3c4043;
+      text-align: center;
+      white-space: nowrap;
+    }
+    .style-pick:hover { border-color: #1a73e8; color: #1a73e8; }
+    .leaflet-control-attribution { font-size: 10px; }
+
+    /* Numbered bubbles on the walking route */
+    .step-pin {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: #1a73e8;
+      color: #fff;
+      border: 2px solid #fff;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, .35);
+      font: 700 11px "Segoe UI", sans-serif;
+      transition: background-color .8s ease, opacity .8s ease, transform .8s ease;
+    }
+    .step-pin.hot { background: #c45c26; }   /* During: dropped */
+    .step-pin.keep { background: #2f6f6a; }  /* After: kept */
+    .step-pin.hide { opacity: 0; transform: scale(.4); pointer-events: none; }
+
+    /* ------------------------------------------------------------------ */
+    /* Phase controls (bottom-left)                                        */
+    /* ------------------------------------------------------------------ */
+    .stage-pane h1 {
+      margin: 0 0 4px;
+      font-size: clamp(0.95rem, 2vw, 1.12rem);
+      font-weight: 650;
+      letter-spacing: -0.02em;
+    }
+    .lead { margin: 0 0 8px; color: var(--ink); font-size: 0.8rem; line-height: 1.35; }
+    .lead span { color: var(--muted); }
+
+    .stages { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+    .stage {
+      padding: 7px 6px;
+      border: 2px solid #cbbca8;
+      border-radius: 10px;
+      background: #fff;
+      text-align: center;
+      font-weight: 700;
+      font-size: 0.82rem;
+      color: var(--ink);
+    }
+    .stage small { display: block; margin-top: 3px; font-weight: 600; color: var(--muted); font-size: 0.68rem; }
+    .stage:hover { border-color: var(--accent); }
+    .stage.on { border-color: var(--accent); background: #fff3e8; box-shadow: 0 0 0 3px rgba(196, 92, 38, .16); }
+    .stage.on[data-id="after"] { border-color: var(--teal); background: #eaf3f1; box-shadow: 0 0 0 3px rgba(47, 111, 106, .16); }
+
+    .note {
+      margin-top: 8px;
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+      padding: 8px 10px;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      transition: opacity .8s ease;
+    }
+    .note h2 { margin: 0 0 4px; font-size: 0.88rem; }
+    .note p { margin: 0 0 4px; font-size: 0.78rem; line-height: 1.35; color: #3f3a34; }
+    .note ul { margin: 0; padding-left: 16px; font-size: 0.76rem; line-height: 1.35; color: #3f3a34; }
+    .note li { margin: 0 0 4px; }
+    .note .keep { color: var(--teal); font-weight: 700; }
+    .note .drop { color: var(--accent); font-weight: 700; }
+
+    /* ------------------------------------------------------------------ */
+    /* Instruction list (right)                                            */
+    /* ------------------------------------------------------------------ */
+    .list-head { padding: 12px 14px 8px; border-bottom: 1px solid var(--line); flex: 0 0 auto; }
+    .list-head h2 { margin: 0; font-size: 1.12rem; }
+    .list-head .move { display: block; margin-top: 4px; color: var(--muted); font-size: 0.8rem; }
+
+    /* Always two cells so the bar does not jump between phases */
+    .meter {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      align-items: center;
+      gap: 8px;
+      margin-top: 12px;
+      padding: 8px;
+      background: #f4eee6;
+      border-radius: 12px;
+    }
+    .meter .cell {
+      display: block;
+      min-height: 3.35rem;
+      padding: 8px 6px;
+      text-align: center;
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0 0 0 1px #e4d9cc;
+    }
+    .meter .cell b {
+      display: block;
+      min-height: 1.55rem;
+      font-size: 1.55rem;
+      line-height: 1;
+      letter-spacing: -0.04em;
+      color: var(--route);
+      transition: color .8s ease, opacity .8s ease;
+    }
+    .meter .cell span {
+      display: block;
+      min-height: 0.8rem;
+      margin-top: 4px;
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--muted);
+      transition: opacity .8s ease, color .8s ease;
+    }
+    /* Right cell stays blank until During */
+    .meter .mid b,
+    .meter .mid span { opacity: 0; }
+    .meter[data-mode="during"] .mid b,
+    .meter[data-mode="during"] .mid span { opacity: 1; }
+    .meter[data-mode="during"] .mid b { color: var(--accent); }
+    .meter[data-mode="after"] .start b { color: var(--teal); }
+    .meter .end { display: none; }
+
+    .code-line {
+      margin-top: 8px;
+      padding: 8px 10px;
+      background: #1b1916;
+      color: #f3ece3;
+      border-radius: 8px;
+      font: 650 0.78rem/1.4 ui-monospace, Consolas, monospace;
+    }
+    .code-line i { font-style: normal; color: #c9b8a4; }
+
+    .steps {
+      list-style: none;
+      margin: 0;
+      padding: 8px 10px 10px;
+      overflow: hidden;
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .steps.after-view { overflow: hidden; gap: 8px; }
+    .steps li {
+      display: grid;
+      grid-template-columns: 32px minmax(0, 1fr);
+      align-items: start;
+      gap: 8px;
+      padding: 8px 10px;
+      max-height: 240px;
+      overflow: hidden;
+      background: #fff;
+      border: 1px solid #efe6da;
+      border-radius: 12px;
+      opacity: 1;
+      transform: translateX(0);
+      transition: max-height 1.2s ease, opacity 1s ease, transform 1.2s ease, padding 1.2s ease, margin 1.2s ease, border-color .4s ease;
+    }
+    .steps li.kept { background: #f3faf7; border-color: #c5ddd7; }
+    .steps li.out {
+      max-height: 0;
+      opacity: 0;
+      transform: translateX(56px);
+      padding-top: 0;
+      padding-bottom: 0;
+      margin: 0;
+      border-width: 0;
+      pointer-events: none;
+    }
+    .steps.after-done li.out { display: none; }
+
+    .num {
+      width: 28px;
+      height: 28px;
+      margin-top: 1px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: #fff;
+      background: var(--route);
+      transition: background-color .8s ease;
+    }
+    .num.after { background: var(--teal); }
+    .gone .num { background: var(--accent); }
+
+    .steps strong { display: block; font-size: 0.86rem; line-height: 1.3; font-weight: 650; }
+    .steps em { display: block; margin-top: 2px; font-style: normal; color: var(--muted); font-size: 0.72rem; line-height: 1.3; }
+    .amend { color: var(--teal); }
+    .kept strong { color: #1e4f4b; }
+
+    /* Strike draws left-to-right across the text only */
+    .gone { color: #8d8d8d; }
+    .gone strong,
+    .gone em {
+      color: #8d8d8d;
+      position: relative;
+      display: block;
+      width: fit-content;
+      max-width: 100%;
+    }
+    .gone strong::after,
+    .gone em::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0.62em;
+      width: 100%;
+      height: 2px;
+      background: #111;
+      transform: scaleX(0);
+      transform-origin: left center;
+      animation: slice-out 1s ease forwards;
+    }
+    @keyframes slice-out {
+      from { transform: scaleX(0); }
+      to { transform: scaleX(1); }
+    }
+
+    /* ------------------------------------------------------------------ */
+    /* Breakpoints                                                         */
+    /* ------------------------------------------------------------------ */
+    @media (max-width: 1100px) {
+      .app { grid-template-columns: minmax(240px, 1fr) minmax(260px, 1fr); }
+      .gbar span.place { flex-basis: 100%; }
+    }
+    @media (max-width: 860px) {
+      .app {
+        grid-template-columns: 1fr;
+        grid-template-rows: minmax(180px, 34vh) auto 1fr;
+        height: 100dvh;
+        overflow: hidden;
+      }
+      .map-pane,
+      .stage-pane,
+      .list-pane { grid-column: 1; border-right: 0; }
+      .map-pane { grid-row: 1; min-height: 220px; }
+      .stage-pane { grid-row: 2; }
+      .list-pane { grid-row: 3; border-top: 1px solid var(--line); }
+      .stages { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <section class="map-pane" aria-label="Map">
+      <div class="map-wrap">
+        <div class="gbar">
+          <span class="gdot"></span>
+          <span class="place">Clifton Hill House → Don Buri, Queen’s Road</span>
+          <button type="button" class="style-pick" id="stylePick">Streets</button>
+          <div class="zoom">
+            <button type="button" id="zoomIn" aria-label="Zoom in">+</button>
+            <button type="button" id="zoomOut" aria-label="Zoom out">−</button>
+          </div>
+        </div>
+        <div id="map"></div>
+      </div>
+    </section>
+
+    <section class="stage-pane">
+      <h1>Abstraction: Finding your favourite restaurant</h1>
+      <p class="lead">Abstraction keeps the useful details and hides the rest. <span>The walk on the map stays the same.</span></p>
+      <div class="stages">
+        <button class="stage on" data-id="before" type="button">Before<small>Every turn</small></button>
+        <button class="stage" data-id="during" type="button">During<small>Filter</small></button>
+        <button class="stage" data-id="after" type="button">After<small>Summarise</small></button>
+      </div>
+      <div class="note" id="note"></div>
+    </section>
+
+    <section class="list-pane" aria-label="Route instructions">
+      <div class="list-head">
+        <h2 id="listTitle">Every turn</h2>
+        <span class="move" id="listCount">Full detail a maps app would store</span>
+        <div class="meter" id="countPill" data-mode="before">
+          <div class="cell start"><b>9</b><span>instructions</span></div>
+          <div class="cell mid"><b>6</b><span>highlighted</span></div>
+          <div class="cell end"><b>3</b><span>remaining</span></div>
+        </div>
+        <div class="code-line" id="codeLine">goToDonBuri() <i>// inside: 9 hidden steps</i></div>
+      </div>
+      <ol class="steps" id="steps"></ol>
+    </section>
+  </main>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    /* ================================================================== */
+    /* 1. Lesson data                                                     */
+    /* keep: true  = landmark a friend needs                              */
+    /* after/amend = how that line is rewritten in the After phase        */
+    /* ================================================================== */
+    const STEPS = [
+      { text: "Leave Clifton Hill House and walk down Lower Clifton Hill", sub: "past the gardens", keep: false },
+      { text: "Continue onto Clifton Hill toward Bellevue", sub: "80 m", keep: false },
+      { text: "Turn right onto Bellevue", sub: "40 m", keep: false },
+      { text: "Turn left onto Richmond Terrace", sub: "90 m", keep: false },
+      {
+        text: "Continue onto Queen’s Road",
+        sub: "main road toward the Triangle",
+        keep: true,
+        after: "Get onto Queen’s Road",
+        amend: "The Clifton Hill, Bellevue and Richmond Terrace turns were merged into this one landmark."
+      },
+      { text: "Stay on Queen’s Road past Victoria Square", sub: "do not turn down toward Park Street", keep: false },
+      {
+        text: "Keep walking toward Richmond Building",
+        sub: "Students’ Union on Queen’s Road",
+        keep: true,
+        after: "Follow Queen’s Road to Richmond Building",
+        amend: "Victoria Square and the SU doorway were dropped. The building name is enough."
+      },
+      { text: "Pass the SU shop entrance on the right", sub: "the brown brick building", keep: false },
+      {
+        text: "Don Buri is the Japanese shop next to Richmond Building",
+        sub: "98 Queen’s Road",
+        keep: true,
+        after: "Don Buri is the Japanese shop beside the SU",
+        amend: "Same shop. The street number was dropped because the name is enough."
+      }
+    ];
+
+    const NOTES = {
+      before: {
+        title: "Before abstraction",
+        html: "<p>A maps app would list every street from Clifton Hill House to Don Buri at 98 Queen’s Road, next to Richmond Building.</p><ul><li>9 instructions, including side streets and distances</li><li>Useful for a computer. Too much for a friend</li><li>The blue line on the map is the real walk. It does not change</li></ul>"
+      },
+      during: {
+        title: "Filter — drop what a friend does not need",
+        html: "<p>First move: keep or drop. The sentences stay the same. We only mark noise.</p><ul><li><span class='keep'>Keep</span> Queen’s Road, Richmond Building and Don Buri.</li><li><span class='drop'>Drop</span> Clifton Hill, Bellevue, Richmond Terrace, distances and extra warnings.</li></ul>"
+      },
+      after: {
+        title: "Summarise — rewrite the leftovers",
+        html: "<p>Second move: the three kept lines are shortened into landmarks a friend can remember.</p><ul><li>Same walk, smaller interface: <code>goToDonBuri()</code></li><li>The 9 inner steps still happen. The caller does not see them.</li></ul>"
+      }
+    };
+
+    /* ================================================================== */
+    /* 2. Map: Esri tiles + fixed walking geometry                        */
+    /* Route was snapped to streets so the line does not cut buildings.   */
+    /* ================================================================== */
+    const A = [51.45380, -2.61307]; // Clifton Hill House
+    const B = [51.45674, -2.60844]; // Don Buri
+    const ROUTE = [
+      A,
+      [51.45382, -2.61304], [51.45396, -2.61274], [51.45397, -2.61266],
+      [51.45398, -2.61224], [51.45399, -2.61193], [51.45405, -2.61166],
+      [51.45415, -2.61136], [51.45424, -2.61116], [51.45431, -2.61105],
+      [51.45461, -2.61061], [51.45466, -2.61055], [51.45494, -2.61014],
+      [51.45498, -2.61004], [51.45500, -2.60997], [51.45501, -2.60992],
+      [51.45501, -2.60988], [51.45501, -2.60981], [51.45512, -2.60974],
+      [51.45522, -2.60968], [51.45534, -2.60959], [51.45547, -2.60945],
+      [51.45558, -2.60929], [51.45567, -2.60915], [51.45575, -2.60898],
+      [51.45578, -2.60891], [51.45582, -2.60883], [51.45589, -2.60861],
+      [51.45597, -2.60838], [51.45601, -2.60825], [51.45607, -2.60817],
+      [51.45611, -2.60813], [51.45621, -2.60805], [51.45628, -2.60804],
+      [51.45645, -2.60801], [51.45652, -2.60799], [51.45662, -2.60797],
+      B
+    ];
+
+    /* One lat/lng per instruction, in list order */
+    const STEP_POINTS = [
+      [51.45380, -2.61307],
+      [51.45398, -2.61224],
+      [51.45424, -2.61116],
+      [51.45466, -2.61055],
+      [51.45501, -2.60981],
+      [51.45547, -2.60945],
+      [51.45589, -2.60861],
+      [51.45628, -2.60804],
+      [51.45674, -2.60844]
+    ];
+
+    const ESRI = "https://server.arcgisonline.com/ArcGIS/rest/services/";
+    const STYLE_ORDER = ["street", "topo", "imagery"];
+    const STYLE_LABELS = { street: "Streets", topo: "Topo", imagery: "Satellite" };
+
+    const map = L.map("map", { zoomControl: false, attributionControl: true }).setView([51.4552, -2.6107], 16);
+    const tileLayers = {
+      imagery: L.tileLayer(ESRI + "World_Imagery/MapServer/tile/{z}/{y}/{x}", { maxZoom: 19, attribution: "Tiles © Esri" }),
+      street: L.tileLayer(ESRI + "World_Street_Map/MapServer/tile/{z}/{y}/{x}", { maxZoom: 19, attribution: "Tiles © Esri" }),
+      topo: L.tileLayer(ESRI + "World_Topo_Map/MapServer/tile/{z}/{y}/{x}", { maxZoom: 19, attribution: "Tiles © Esri" })
+    };
+
+    let currentStyle = "street";
+    tileLayers[currentStyle].addTo(map);
+
+    const routeHalo = L.polyline(ROUTE, { color: "#ffffff", weight: 7, opacity: 0.85, lineJoin: "round", lineCap: "round" }).addTo(map);
+    const routeLine = L.polyline(ROUTE, { color: "#1a73e8", weight: 4.5, opacity: 1, lineJoin: "round", lineCap: "round" }).addTo(map);
+
+    function bubbleIcon(number, kind) {
+      return L.divIcon({
+        className: "step-pin " + kind,
+        html: "<span>" + number + "</span>",
+        iconSize: [22, 22],
+        iconAnchor: [11, 11]
+      });
+    }
+
+    const stepMarks = STEP_POINTS.map(function (latlng, i) {
+      return L.marker(latlng, { icon: bubbleIcon(i + 1, ""), interactive: false }).addTo(map);
+    });
+
+    map.fitBounds(ROUTE, { padding: [36, 36] });
+    setTimeout(function () { map.invalidateSize(); }, 80);
+    window.addEventListener("resize", function () { map.invalidateSize(); });
+
+    function keepRouteOnTop() {
+      routeHalo.bringToFront();
+      routeLine.bringToFront();
+      stepMarks.forEach(function (marker) { marker.bringToFront(); });
+    }
+
+    document.getElementById("zoomIn").addEventListener("click", function () { map.zoomIn(); });
+    document.getElementById("zoomOut").addEventListener("click", function () { map.zoomOut(); });
+    document.getElementById("stylePick").addEventListener("click", function () {
+      map.removeLayer(tileLayers[currentStyle]);
+      currentStyle = STYLE_ORDER[(STYLE_ORDER.indexOf(currentStyle) + 1) % STYLE_ORDER.length];
+      tileLayers[currentStyle].addTo(map);
+      this.textContent = STYLE_LABELS[currentStyle];
+      keepRouteOnTop();
+    });
+
+    /* ================================================================== */
+    /* 3. Instruction list + phase machine                                */
+    /* ================================================================== */
+    const list = document.getElementById("steps");
+    list.innerHTML = STEPS.map(function (step, i) {
+      return (
+        "<li data-keep='" + (step.keep ? "1" : "0") + "'>" +
+          "<span class='num'>" + (i + 1) + "</span>" +
+          "<div><strong>" + step.text + "</strong>" +
+          "<span class='extra'>" + (step.sub ? "<em>" + step.sub + "</em>" : "") + "</span></div>" +
+        "</li>"
+      );
+    }).join("");
+
+    let stage = "before";
+
+    /* Sync map bubbles with the current phase */
+    function paintMarks() {
+      let kept = 0;
+      stepMarks.forEach(function (marker, i) {
+        const keep = STEPS[i].keep;
+        let kind = "";
+        let number = i + 1;
+        if (stage === "during" && !keep) kind = "hot";
+        if (stage === "after" && keep) {
+          kept += 1;
+          number = kept;
+          kind = "keep";
+        }
+        if (stage === "after" && !keep) kind = "hide";
+        marker.setIcon(bubbleIcon(number, kind));
+      });
+    }
+
+    function render() {
+      document.querySelectorAll(".stage").forEach(function (button) {
+        button.classList.toggle("on", button.dataset.id === stage);
+      });
+
+      const note = NOTES[stage];
+      document.getElementById("note").innerHTML = "<h2>" + note.title + "</h2>" + note.html;
+
+      document.getElementById("listTitle").textContent =
+        stage === "after" ? "Summarised route" : stage === "during" ? "Filter the list" : "Every turn";
+      document.getElementById("listCount").textContent =
+        stage === "after" ? "3 landmarks a friend can use" :
+        stage === "during" ? "Keep 3 · drop 6" :
+        "Full detail a maps app would store";
+
+      const meter = document.getElementById("countPill");
+      const code = document.getElementById("codeLine");
+      meter.dataset.mode = stage;
+      meter.querySelector(".start b").textContent = stage === "after" ? "3" : "9";
+      meter.querySelector(".start span").textContent = stage === "after" ? "remaining" : "instructions";
+
+      list.classList.toggle("after-view", stage === "after");
+      if (stage !== "after") list.classList.remove("after-done");
+
+      if (stage === "after") {
+        code.innerHTML = "goToDonBuri() <i>// friend only sees this</i>";
+        setTimeout(function () {
+          if (stage === "after") list.classList.add("after-done");
+        }, 1250);
+      } else if (stage === "during") {
+        code.innerHTML = "goToDonBuri() <i>// deciding what stays inside</i>";
+      } else {
+        code.innerHTML = "goToDonBuri() <i>// inside: 9 hidden steps</i>";
+      }
+
+      let kept = 0;
+      Array.prototype.forEach.call(list.children, function (row, i) {
+        const step = STEPS[i];
+        const extra = row.querySelector(".extra");
+        const num = row.querySelector(".num");
+        const title = row.querySelector("strong");
+
+        row.classList.toggle("kept", !!(step.keep && stage !== "before"));
+        row.classList.toggle("gone", !step.keep && stage !== "before");
+        row.classList.toggle("out", !step.keep && stage === "after");
+
+        if (stage === "after" && step.keep) {
+          kept += 1;
+          title.textContent = step.after;
+          extra.innerHTML = "<em class='amend'>Changed: " + step.amend + "</em>";
+          num.textContent = kept;
+          num.classList.add("after");
+        } else {
+          title.textContent = step.text;
+          extra.innerHTML = step.sub
+            ? "<em>" + step.sub + (stage === "during" ? " · " + (step.keep ? "keep" : "drop") : "") + "</em>"
+            : (stage === "during" ? "<em>" + (step.keep ? "keep" : "drop") + "</em>" : "");
+          num.textContent = i + 1;
+          num.classList.remove("after");
+        }
+      });
+
+      paintMarks();
+    }
+
+    document.querySelectorAll(".stage").forEach(function (button) {
+      button.addEventListener("click", function () {
+        stage = button.dataset.id;
+        render();
+      });
+    });
+
+    render();
+  </script>
+</body>
+</html>

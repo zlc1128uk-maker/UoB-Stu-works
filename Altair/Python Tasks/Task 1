@@ -1,0 +1,7 @@
+x = datetime.datetime.now()
+s = x.time()
+print(s)
+
+print("Hello,World!")
+print('Albert Einstein once said "Imagination is more important than knowledge.KNowledge is limited, but imagination encircles the world."')
+print("Tom said,\"I have always liked to hear 'I am the best' as often as possible\"")

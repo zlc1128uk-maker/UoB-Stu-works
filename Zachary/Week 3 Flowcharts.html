@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<!--
+  Flowcharts — step through
+  -------------------------
+  One page for five flowchart questions.
+  Left: the question, with the current step's words highlighted.
+  Then: written description (or decomposition on V), pseudocode, flowchart.
+  Click a symbol to move to that step. The matching line highlights in each panel.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Flowcharts — step through</title>
+<style>
+  :root {
+    --bg: #e8edf2;
+    --ink: #1c2430;
+    --line: #b7c3d0;
+    --head: #4a6a8a;
+    --accent: #c45c26;
+    --muted: #5c6b7a;
+    --stroke: #1c2430;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { font-family: "Segoe UI", system-ui, sans-serif; color: var(--ink); background: var(--bg); }
+
+  /* Top bar: title, question tabs, symbol key */
+  .top { display: flex; align-items: center; gap: 14px; padding: 10px 14px; background: #fff; border-bottom: 1px solid var(--line); }
+  .top h1 { margin: 0; font-size: 1.05rem; white-space: nowrap; }
+  .tabs { display: flex; gap: 6px; overflow-x: auto; flex: 1; }
+  .tabs button {
+    border: 1px solid var(--line); background: #fff; border-radius: 999px;
+    padding: 6px 11px; font: inherit; font-weight: 700; font-size: 0.82rem; cursor: pointer; white-space: nowrap;
+  }
+  .tabs button[aria-selected="true"] { background: var(--head); color: #fff; border-color: var(--head); }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 10px; font-size: 11px; color: var(--muted); margin-left: auto; }
+  .legend i { display: inline-block; vertical-align: middle; margin-right: 3px; border: 1.5px solid var(--stroke); background: #fff; }
+  .legend .l-se { width: 16px; height: 8px; border-radius: 8px; }
+  .legend .l-pr { width: 14px; height: 8px; }
+  .legend .l-de { width: 8px; height: 8px; transform: rotate(45deg); }
+  .legend .l-io { width: 16px; height: 8px; transform: skewX(-18deg); }
+
+  /* Question | Written or Decomposition | Pseudocode | Flowchart */
+  .wrap {
+    display: grid;
+    grid-template-columns: minmax(280px, 1fr) minmax(270px, 1.05fr) minmax(290px, 1.1fr) minmax(380px, 1.45fr);
+    height: calc(100vh - 49px);
+  }
+  .pane { min-width: 0; min-height: 0; display: flex; flex-direction: column; border-right: 1px solid var(--line); background: #fff; }
+  .pane h2 { margin: 0; padding: 7px 12px; background: var(--head); color: #fff; font-size: 1rem; font-weight: 650; text-align: center; }
+  .pane.question h2 { text-align: left; font-size: 1rem; line-height: 1.4; font-weight: 600; }
+  .pane .body { overflow: auto; padding: 8px 10px 10px; flex: 1; }
+  /* Highlight on the blue question header — bold yellow so it reads against the blue */
+  mark.hit { background: none; color: #ffe14a; font-weight: 800; }
+
+  .wline { padding: 3px 4px; border-bottom: 1px solid #eef2f6; line-height: 1.3; font-size: 0.92rem; }
+  .wline.on { background: #fff3e8; border-left: 3px solid var(--accent); padding-left: 6px; font-weight: 700; }
+  .pseudo-block { font-family: Consolas, "Courier New", monospace; font-size: 0.86rem; line-height: 1.4; }
+  .pseudo-block .ln { padding: 0 4px; white-space: pre; }
+  .pseudo-block .ln.on { background: #fff3e8; border-left: 3px solid var(--accent); padding-left: 6px; font-weight: 700; }
+
+  /* Shared flowchart symbols: stadium, rectangle, diamond, parallelogram */
+  .flow { display: flex; flex-direction: column; align-items: center; }
+  .blk {
+    border: 2px solid var(--stroke); background: #fff; color: var(--ink);
+    font: 650 13px/1.2 "Segoe UI", sans-serif; cursor: pointer; text-align: center;
+    display: inline-flex; align-items: center; justify-content: center; padding: 0;
+  }
+  .blk span { display: block; }
+  .blk.term { border-radius: 999px; min-width: 104px; height: 30px; padding: 0 16px; } /* start / end */
+  .blk.proc { min-width: 150px; max-width: 210px; min-height: 32px; padding: 5px 10px; } /* process */
+  .blk.para { width: 172px; min-height: 32px; transform: skewX(-16deg); } /* input / output */
+  .blk.para span { transform: skewX(16deg); padding: 5px 16px; max-width: 146px; }
+  .diam-box { width: 104px; height: 92px; display: flex; align-items: center; justify-content: center; }
+  .blk.diam { width: 66px; height: 66px; transform: rotate(45deg); flex-shrink: 0; } /* decision */
+  .blk.diam span { transform: rotate(-45deg); width: 58px; font-size: 12px; line-height: 1.1; }
+  .blk.on { background: #fff3e8; border-color: var(--accent); box-shadow: 0 0 0 2px rgba(196, 92, 38, 0.18); }
+  .arr { width: 2px; height: 8px; background: var(--stroke); position: relative; flex-shrink: 0; }
+  .arr:after { content: ""; position: absolute; left: -3px; bottom: -1px; border: 4px solid transparent; border-top-color: var(--stroke); }
+
+  /* Yes / No split under a decision */
+  .fork { width: 100%; max-width: 340px; display: flex; flex-direction: column; align-items: center; }
+  .stem, .vline { width: 2px; background: var(--stroke); position: relative; }
+  .stem { height: 8px; }
+  .bar { width: calc(50% + 6px); height: 2px; background: var(--stroke); }
+  .fork-cols { display: grid; grid-template-columns: 1fr 1fr; width: 100%; gap: 10px; }
+  .col { display: flex; flex-direction: column; align-items: center; min-width: 0; }
+  .lbl { font-size: 12px; font-weight: 800; color: var(--accent); margin: 2px 0; letter-spacing: 0.04em; }
+  .vline { height: 8px; }
+  .vline.grow { flex: 1; min-height: 8px; }
+  .vline.cap:after { content: ""; position: absolute; left: -3px; bottom: -1px; border: 4px solid transparent; border-top-color: var(--stroke); }
+  .col .blk.proc { min-width: 0; width: 100%; max-width: none; font-size: 12px; }
+  .col .blk.para { width: 100%; max-width: 140px; min-width: 0; transform: skewX(-14deg); font-size: 12px; }
+  .col .blk.para span { transform: skewX(14deg); padding: 4px 8px; max-width: none; font-size: 12px; }
+
+  /* Decomposition cards (question V only) */
+  .tasks { display: flex; flex-direction: column; gap: 6px; }
+  .task { border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; background: #fff; }
+  .task.on { border-color: var(--accent); background: #fff6ef; box-shadow: 0 0 0 2px rgba(196, 92, 38, 0.15); }
+  .task b { display: block; font-size: 0.9rem; margin-bottom: 2px; }
+  .task .map { font-size: 0.82rem; color: #3f4a56; line-height: 1.3; }
+  .task .map code { font-family: Consolas, "Courier New", monospace; font-size: 0.8rem; background: #eef3f8; padding: 0 3px; border-radius: 3px; }
+
+  @media (max-width: 1100px) {
+    .wrap { grid-template-columns: 1fr; height: auto; }
+    .pane { border-right: 0; border-bottom: 1px solid var(--line); min-height: 260px; }
+    .legend { margin-left: 0; }
+  }
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>Flowcharts</h1>
+  <div class="tabs" role="tablist">
+    <button type="button" role="tab" data-chart="tea" aria-selected="true">I. Cup of tea</button>
+    <button type="button" role="tab" data-chart="pl" aria-selected="false">II. Profit and loss</button>
+    <button type="button" role="tab" data-chart="sum" aria-selected="false">III. Sum of 3</button>
+    <button type="button" role="tab" data-chart="gt" aria-selected="false">IV. Greater than 0</button>
+    <button type="button" role="tab" data-chart="both" aria-selected="false">V. Greater or less</button>
+  </div>
+  <div class="legend">
+    <span><i class="l-se"></i>Start / end</span>
+    <span><i class="l-pr"></i>Process</span>
+    <span><i class="l-de"></i>Decision</span>
+    <span><i class="l-io"></i>Input / output</span>
+  </div>
+</header>
+<div class="wrap">
+  <section class="pane question" id="output"></section>
+  <section class="pane" id="written"></section>
+  <section class="pane" id="pseudo"></section>
+  <section class="pane" id="chart"></section>
+</div>
+<script>
+/*
+  Each chart:
+    order   — step keys, in sequence
+    steps   — kind (shape), label (on the symbol), written (description), refs (phrases to highlight in the question)
+    pseudo  — lines of pseudocode, each tagged with the step it belongs to
+    decomp  — question V only: the deliverables from the question, mapped to symbols and pseudocode
+*/
+const charts = {
+  tea: {
+    question: "I. Outlining the process for making a cup of tea.",
+    order: ["start","fill","boil","bag","pour","steep","remove","milk","add","serve","end"],
+    steps: {
+      start: { kind:"start", label:"Start", written:"Start making a cup of tea" },
+      fill: { kind:"process", label:"Fill the kettle with water", written:"Fill the kettle with water" },
+      boil: { kind:"process", label:"Boil the water", written:"Boil the water" },
+      bag: { kind:"process", label:"Put a tea bag in a cup", written:"Put a tea bag in a cup" },
+      pour: { kind:"process", label:"Pour boiling water into the cup", written:"Pour boiling water into the cup" },
+      steep: { kind:"process", label:"Wait for the tea to steep", written:"Wait for the tea to steep" },
+      remove: { kind:"process", label:"Remove the tea bag", written:"Remove the tea bag" },
+      milk: { kind:"decision", label:"Add milk or sugar?", written:"Decide whether to add milk or sugar" },
+      add: { kind:"process", label:"Add milk / sugar and stir", written:"Add milk or sugar and stir" },
+      serve: { kind:"output", label:"Serve the tea", written:"Serve the tea", refs:["making a cup of tea"] },
+      end: { kind:"end", label:"End", written:"End" }
+    },
+    pseudo: [
+      { k:"start", t:"BEGIN" },
+      { k:"fill", t:"SET kettle = filled with water" },
+      { k:"boil", t:"SET water = boiling" },
+      { k:"bag", t:"SET cup = tea bag added" },
+      { k:"pour", t:"SET cup = boiling water poured" },
+      { k:"steep", t:"SET tea = steeped" },
+      { k:"remove", t:"SET cup = tea bag removed" },
+      { k:"milk", t:"IF add milk or sugar THEN" },
+      { k:"add", t:"  SET tea = milk or sugar added and stirred" },
+      { k:"add", t:"ENDIF" },
+      { k:"serve", t:"OUTPUT \"Serve the tea\"" },
+      { k:"end", t:"END" }
+    ]
+  },
+  pl: {
+    question: "II. Calculate Profit and Loss.",
+    order: ["start","cp","sp","gt","profit","lt","loss","even","end"],
+    steps: {
+      start: { kind:"start", label:"Start", written:"Start the calculation" },
+      cp: { kind:"input", label:"Enter cost price", written:"Enter the cost price" },
+      sp: { kind:"input", label:"Enter selling price", written:"Enter the selling price" },
+      gt: { kind:"decision", label:"Is SP > CP?", written:"Is the selling price greater than the cost price?", refs:["Profit"] },
+      profit: { kind:"process", label:"Profit = SP − CP", written:"Work out the profit", refs:["Profit"] },
+      lt: { kind:"decision", label:"Is SP < CP?", written:"Is the selling price less than the cost price?", refs:["Loss"] },
+      loss: { kind:"process", label:"Loss = CP − SP", written:"Work out the loss", refs:["Loss"] },
+      even: { kind:"output", label:"No profit, no loss", written:"Report no profit and no loss", refs:["Profit and Loss"] },
+      end: { kind:"end", label:"End", written:"End" }
+    },
+    pseudo: [
+      { k:"start", t:"BEGIN" },
+      { k:"start", t:"numeric cp, sp, profit, loss" },
+      { k:"cp", t:"OUTPUT \"Enter cost price : \"" },
+      { k:"cp", t:"INPUT cp" },
+      { k:"sp", t:"OUTPUT \"Enter selling price : \"" },
+      { k:"sp", t:"INPUT sp" },
+      { k:"gt", t:"IF sp > cp THEN" },
+      { k:"profit", t:"  SET profit = sp - cp" },
+      { k:"profit", t:"  OUTPUT \"Profit : \" profit" },
+      { k:"lt", t:"ELSE" },
+      { k:"lt", t:"  IF sp < cp THEN" },
+      { k:"loss", t:"    SET loss = cp - sp" },
+      { k:"loss", t:"    OUTPUT \"Loss : \" loss" },
+      { k:"even", t:"  ELSE" },
+      { k:"even", t:"    OUTPUT \"No profit, no loss\"" },
+      { k:"even", t:"  ENDIF" },
+      { k:"end", t:"ENDIF" },
+      { k:"end", t:"END" }
+    ]
+  },
+  sum: {
+    question: "III. To show a simple summation of 3 number process.",
+    order: ["start","in","calc","out","end"],
+    steps: {
+      start: { kind:"start", label:"Start", written:"Start" },
+      in: { kind:"input", label:"Enter three numbers", written:"Enter three numbers", refs:["3 number"] },
+      calc: { kind:"process", label:"Sum = A + B + C", written:"Add the three numbers together", refs:["summation"] },
+      out: { kind:"output", label:"Output the total", written:"Output the total", refs:["summation"] },
+      end: { kind:"end", label:"End", written:"End" }
+    },
+    pseudo: [
+      { k:"start", t:"BEGIN" },
+      { k:"start", t:"numeric a, b, c, sum" },
+      { k:"in", t:"OUTPUT \"Enter the first number : \"" },
+      { k:"in", t:"INPUT a" },
+      { k:"in", t:"OUTPUT \"Enter the second number : \"" },
+      { k:"in", t:"INPUT b" },
+      { k:"in", t:"OUTPUT \"Enter the third number : \"" },
+      { k:"in", t:"INPUT c" },
+      { k:"calc", t:"SET sum = a + b + c" },
+      { k:"out", t:"OUTPUT \"Sum of these numbers : \" sum" },
+      { k:"end", t:"END" }
+    ]
+  },
+  gt: {
+    question: "IV. Asks a user for a number. If the number is greater than zero, the program prints “Greater than 0”, then the program ends.",
+    order: ["start","in","gt","print","end"],
+    steps: {
+      start: { kind:"start", label:"Start", written:"Start" },
+      in: { kind:"input", label:"Enter a number", written:"Enter a number", refs:["Asks a user for a number"] },
+      gt: { kind:"decision", label:"Is N > 0?", written:"Is the number greater than zero?", refs:["If the number is greater than zero"] },
+      print: { kind:"output", label:"Print Greater than 0", written:"Print “Greater than 0”", refs:["prints “Greater than 0”"] },
+      end: { kind:"end", label:"End", written:"End" }
+    },
+    pseudo: [
+      { k:"start", t:"BEGIN" },
+      { k:"start", t:"numeric n" },
+      { k:"in", t:"OUTPUT \"Enter a number : \"" },
+      { k:"in", t:"INPUT n" },
+      { k:"gt", t:"IF n > 0 THEN" },
+      { k:"print", t:"  OUTPUT \"Greater than 0\"" },
+      { k:"print", t:"ENDIF" },
+      { k:"end", t:"END" }
+    ]
+  },
+  both: {
+    question: "V. Asks a user for a number. If the number is greater than zero, the program prints “Greater than 0”. If the number is less than zero, the program prints “Less than 0”. Then the program prints “Thanks for using my flowchart” and the program ends.",
+    order: ["start","in","gt","hi","lt","lo","zero","thanks","end"],
+    steps: {
+      start: { kind:"start", label:"Start", written:"Start" },
+      in: { kind:"input", label:"Enter a number", written:"Enter a number", refs:["Asks a user for a number"] },
+      gt: { kind:"decision", label:"Is N > 0?", written:"Is the number greater than zero?", refs:["If the number is greater than zero"] },
+      hi: { kind:"output", label:"Print Greater than 0", written:"Print “Greater than 0”", refs:["prints “Greater than 0”"] },
+      lt: { kind:"decision", label:"Is N < 0?", written:"Is the number less than zero?", refs:["If the number is less than zero"] },
+      lo: { kind:"output", label:"Print Less than 0", written:"Print “Less than 0”", refs:["prints “Less than 0”"] },
+      /* Not in the question text — extra path so a zero still has an output */
+      zero: { kind:"output", label:"Print the output is 0", written:"Print that the output is 0" },
+      thanks: { kind:"output", label:"Print thanks", written:"Print “Thanks for using my flowchart”", refs:["prints “Thanks for using my flowchart”"] },
+      end: { kind:"end", label:"End", written:"End", refs:["the program ends"] }
+    },
+    pseudo: [
+      { k:"start", t:"BEGIN" },
+      { k:"start", t:"numeric n" },
+      { k:"in", t:"OUTPUT \"Enter a number : \"" },
+      { k:"in", t:"INPUT n" },
+      { k:"gt", t:"IF n > 0 THEN" },
+      { k:"hi", t:"  OUTPUT \"Greater than 0\"" },
+      { k:"lt", t:"ELSE" },
+      { k:"lt", t:"  IF n < 0 THEN" },
+      { k:"lo", t:"    OUTPUT \"Less than 0\"" },
+      { k:"zero", t:"  ELSE" },
+      { k:"zero", t:"    OUTPUT \"The output is 0\"" },
+      { k:"zero", t:"  ENDIF" },
+      { k:"thanks", t:"ENDIF" },
+      { k:"thanks", t:"OUTPUT \"Thanks for using my flowchart\"" },
+      { k:"end", t:"END" }
+    ],
+    /* Only the deliverables that are actually in the question, plus end because the question says the program ends */
+    decomp: [
+      { keys:["in"], task:"Ask the user for a number", symbol:"Input — parallelogram", code:"OUTPUT \"Enter a number : \"  INPUT n" },
+      { keys:["gt","hi"], task:"If it is greater than zero, print “Greater than 0”", symbol:"Decision, then output", code:"IF n > 0 THEN  OUTPUT \"Greater than 0\"" },
+      { keys:["lt","lo"], task:"If it is less than zero, print “Less than 0”", symbol:"Decision, then output", code:"IF n < 0 THEN  OUTPUT \"Less than 0\"" },
+      { keys:["thanks"], task:"Then print the thank-you message", symbol:"Output — parallelogram", code:"OUTPUT \"Thanks for using my flowchart\"" },
+      { keys:["end"], task:"End the program", symbol:"Start / end — stadium", code:"END" }
+    ]
+  }
+};
+
+let chartId = "tea";
+let index = 0;
+function chart(){ return charts[chartId]; }
+function cur(){ return chart().order[index]; }
+
+/* One symbol button. Diamonds sit in a box so the rotated square does not overlap the arrows. */
+function blk(id, key){
+  const s = charts[id].steps[key];
+  const cls = s.kind === "start" || s.kind === "end" ? "term"
+    : s.kind === "decision" ? "diam"
+    : s.kind === "input" || s.kind === "output" ? "para" : "proc";
+  const inner = `<button class="blk ${cls}" data-step="${key}" type="button"><span>${s.label}</span></button>`;
+  return s.kind === "decision" ? `<div class="diam-box">${inner}</div>` : inner;
+}
+/* Yes on the left, No on the right. Nested calls make the next decision split again. */
+function fork(yes, no){
+  return `<div class="fork"><div class="stem"></div><div class="bar"></div><div class="fork-cols">
+    <div class="col"><div class="vline cap"></div><div class="lbl">Yes</div>${yes}<div class="vline grow"></div></div>
+    <div class="col"><div class="vline cap"></div><div class="lbl">No</div>${no}<div class="vline grow"></div></div>
+  </div><div class="bar"></div><div class="vline cap"></div></div>`;
+}
+function flowHTML(id){
+  const A = '<div class="arr"></div>';
+  if (id === "tea") return `<div class="flow">${blk(id,"start")}${A}${blk(id,"fill")}${A}${blk(id,"boil")}${A}${blk(id,"bag")}${A}${blk(id,"pour")}${A}${blk(id,"steep")}${A}${blk(id,"remove")}${A}${blk(id,"milk")}
+    ${fork(blk(id,"add"), "")}${A}${blk(id,"serve")}${A}${blk(id,"end")}</div>`;
+  if (id === "pl") return `<div class="flow">${blk(id,"start")}${A}${blk(id,"cp")}${A}${blk(id,"sp")}${A}${blk(id,"gt")}
+    ${fork(blk(id,"profit"), blk(id,"lt") + fork(blk(id,"loss"), blk(id,"even")))}${A}${blk(id,"end")}</div>`;
+  if (id === "sum") return `<div class="flow">${blk(id,"start")}${A}${blk(id,"in")}${A}${blk(id,"calc")}${A}${blk(id,"out")}${A}${blk(id,"end")}</div>`;
+  if (id === "gt") return `<div class="flow">${blk(id,"start")}${A}${blk(id,"in")}${A}${blk(id,"gt")}
+    ${fork(blk(id,"print"), "")}${A}${blk(id,"end")}</div>`;
+  return `<div class="flow">${blk(id,"start")}${A}${blk(id,"in")}${A}${blk(id,"gt")}
+    ${fork(blk(id,"hi"), blk(id,"lt") + fork(blk(id,"lo"), blk(id,"zero")))}${A}${blk(id,"thanks")}${A}${blk(id,"end")}</div>`;
+}
+
+/* Wrap the current step's phrases in the question so they highlight. Longer phrases first so they are not cut by a shorter match. */
+function questionHTML(c){
+  const refs = (c.steps[cur()].refs || []).slice().sort((a, b) => b.length - a.length);
+  let html = c.question;
+  refs.forEach((phrase, i) => { html = html.replace(phrase, `%%${i}%%`); });
+  refs.forEach((phrase, i) => { html = html.replace(`%%${i}%%`, `<mark class="hit">${phrase}</mark>`); });
+  return html;
+}
+
+function render(){
+  const c = chart();
+  document.getElementById("output").innerHTML = `<h2>${questionHTML(c)}</h2><div class="body"></div>`;
+  document.getElementById("written").innerHTML = c.decomp
+    ? `<h2>Decomposition</h2><div class="body"><div class="tasks">${c.decomp.map(d => `<div class="task${d.keys.includes(cur())?" on":""}"><b>${d.task}</b><div class="map">${d.symbol}<br><code>${d.code}</code></div></div>`).join("")}</div></div>`
+    : `<h2>Written Description</h2><div class="body">${c.order.map(k => `<div class="wline${k===cur()?" on":""}">${c.steps[k].written}</div>`).join("")}</div>`;
+  document.getElementById("pseudo").innerHTML = `<h2>Pseudocode</h2><div class="body"><div class="pseudo-block">${c.pseudo.map(l => `<div class="ln${l.k===cur()?" on":""}">${l.t}</div>`).join("")}</div></div>`;
+  document.getElementById("chart").innerHTML = `<h2>Flowchart</h2><div class="body">${flowHTML(chartId)}</div>`;
+  document.querySelectorAll("[data-step]").forEach(btn => {
+    btn.classList.toggle("on", btn.dataset.step === cur());
+    btn.addEventListener("click", () => {
+      const i = c.order.indexOf(btn.dataset.step);
+      if (i >= 0) { index = i; render(); }
+    });
+  });
+}
+document.querySelectorAll(".tabs button").forEach(btn => btn.addEventListener("click", () => {
+  chartId = btn.dataset.chart;
+  index = 0;
+  document.querySelectorAll(".tabs button").forEach(b => b.setAttribute("aria-selected", b === btn ? "true" : "false"));
+  render();
+}));
+render();
+</script>
+</body>
+</html>

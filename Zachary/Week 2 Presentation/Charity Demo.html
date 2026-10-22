@@ -1,0 +1,1292 @@
+<!--
+  Charity event presentation
+  --------------------------
+  One evening, four ideas, for someone who has not programmed.
+
+  Decomposition: split the event until a box is a job someone could do today.
+  Pattern recognition: the same job appears in more than one place.
+  Abstraction: hide the method inside the job. Invitations and Logistics keep their names.
+  Algorithmic thinking: write the order, the decision, and the loop, then slot those recipes into the plan.
+
+  The tree is drawn in SVG. Pattern cards, abstraction, and flowcharts replace the tree in #lines.
+  Hidden kind tags on some boxes are for matching only. They are never shown.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Charity event — decomposition tree</title>
+<style>
+    /* Same tokens as Abstraction Directions */
+    :root {
+      --ink: #1b1916;
+      --muted: #6d655c;
+      --bg: #efe7dc;
+      --paper: #fffaf3;
+      --line: #e4d9cc;
+      --accent: #c45c26;
+      --teal: #2f6f6a;
+      --route: #1a73e8;
+      --gather: #2f6f6a;
+      --experience: #c45c26;
+      --donations: #3e6b48;
+      --gold: #c45c26;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      display: flex;
+      color: var(--ink);
+      background: var(--bg);
+      font-family: "Segoe UI", system-ui, sans-serif;
+      overflow: hidden;
+    }
+    button { cursor: pointer; font-family: inherit; }
+
+    #stage {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+      cursor: grab;
+      background: var(--bg);
+      border-right: 1px solid var(--line);
+    }
+    #stage.dragging { cursor: grabbing; }
+    #world { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+    #links { position: absolute; inset: 0; overflow: visible; pointer-events: none; }
+    #nodes { position: absolute; inset: 0; }
+    .box {
+      position: absolute;
+      left: 0; top: 0;
+      width: 118px;
+      padding: 7px 7px;
+      border-radius: 12px;
+      background: #fff;
+      border: 2px solid #cbbca8;
+      box-shadow: 0 1px 3px rgba(60, 64, 67, .12);
+      text-align: center;
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1.2;
+      color: var(--ink);
+      user-select: none;
+      transition: border-color .2s, box-shadow .2s, opacity .35s, transform .35s ease, background-color .2s;
+    }
+    .box.root { font-weight: 700; width: 108px; font-size: 13px; }
+    .box.arrive { animation: arrive 0.45s ease; }
+    @keyframes arrive {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    .box.dim { opacity: 0.22; }
+    .box.glow {
+      border-color: var(--glow, var(--accent));
+      background: #fff3e8;
+      box-shadow:
+        0 0 0 3px color-mix(in srgb, var(--glow, var(--accent)) 22%, transparent),
+        0 1px 4px rgba(0, 0, 0, .12);
+      z-index: 3;
+    }
+    #side {
+      width: 360px;
+      flex: none;
+      background: var(--paper);
+      padding: 12px 14px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      overflow: auto;
+    }
+    .tabs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .tabs button {
+      text-align: center;
+      padding: 7px 6px;
+      font-size: 0.78rem;
+    }
+    .tabs button.active {
+      border-color: var(--accent);
+      background: #fff3e8;
+      color: var(--ink);
+      box-shadow: 0 0 0 3px rgba(196, 92, 38, .16);
+    }
+    .panel { display: none; flex-direction: column; gap: 8px; }
+    .panel.on { display: flex; }
+    .steps { display: flex; flex-direction: column; gap: 6px; }
+    .steps button.active {
+      border-color: var(--accent);
+      background: #fff3e8;
+      color: var(--ink);
+      box-shadow: 0 0 0 3px rgba(196, 92, 38, .16);
+    }
+    .note {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.78rem;
+      line-height: 1.35;
+    }
+    #side h1 {
+      margin: 0;
+      font-size: clamp(0.95rem, 2vw, 1.12rem);
+      font-weight: 650;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+    }
+    #side .quiet { margin: 4px 0 0; color: var(--muted); font-size: 0.8rem; }
+    .group { display: flex; flex-direction: column; gap: 6px; }
+    .group p {
+      margin: 0 0 2px;
+      font-size: 0.65rem;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--muted);
+      font-weight: 700;
+    }
+    button {
+      font-size: 0.82rem;
+      font-weight: 700;
+      border: 2px solid #cbbca8;
+      background: #fff;
+      color: var(--ink);
+      border-radius: 10px;
+      padding: 7px 8px;
+      text-align: left;
+    }
+    button:hover { border-color: var(--accent); }
+    button:disabled { opacity: 0.4; cursor: default; }
+    button:disabled:hover { border-color: #cbbca8; }
+    #zoom {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      z-index: 4;
+      display: flex;
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(60, 64, 67, .28);
+      overflow: hidden;
+    }
+    #zoom button {
+      width: 36px;
+      height: 32px;
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      text-align: center;
+      font-size: 18px;
+      font-weight: 700;
+      color: #5f6368;
+      line-height: 1;
+      box-shadow: none;
+    }
+    #zoom button:hover { color: var(--route); border-color: transparent; }
+    #zoom button + button { border-left: 1px solid #e4e4e4; }
+    button.active {
+      border-color: var(--accent);
+      background: #fff3e8;
+      color: var(--ink);
+      box-shadow: 0 0 0 3px rgba(196, 92, 38, .16);
+    }
+    .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .pair button { text-align: center; }
+    #lines {
+      position: absolute;
+      inset: 0;
+      z-index: 3;
+      display: none;
+      overflow: auto;
+      padding: 16px 16px 24px;
+      background: var(--bg);
+    }
+    #lines.on {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      overflow: hidden;
+      padding: 12px 14px;
+    }
+    .line-group { margin: 0; min-height: 0; }
+    .line-group { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+    .line-group h2 {
+      margin: 0 0 10px;
+      font-size: 1.45rem;
+      letter-spacing: -0.02em;
+      text-transform: none;
+      color: var(--ink);
+    }
+    .line-row {
+      display: grid;
+      grid-template-columns: repeat(var(--cols, 4), minmax(0, 1fr));
+      grid-auto-rows: minmax(0, 1fr);
+      gap: 12px;
+      flex: 1;
+      min-height: 0;
+    }
+    .line-group p {
+      margin: 0 0 6px;
+      color: var(--ink);
+      font-size: 0.78rem;
+    }
+    .vline {
+      min-width: 0;
+      min-height: 0;
+      padding: 14px 12px;
+      background: #fff;
+      color: var(--ink);
+      border: 2px solid var(--card-glow, var(--teal));
+      border-radius: 14px;
+      font: 650 0.95rem/1.35 "Segoe UI", system-ui, sans-serif;
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--card-glow, var(--teal)) 28%, transparent), 0 0 18px color-mix(in srgb, var(--card-glow, var(--teal)) 35%, transparent);
+      animation: cardIn .45s ease;
+    }
+    @keyframes cardIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+    #world, #lines { transition: opacity .35s ease; }
+    #stage.switching #world, #stage.switching #lines { opacity: 0; }
+    .mid, .broad, .endplan { animation: cardIn .4s ease; }
+    .vline span { display: block; color: var(--muted); overflow-wrap: anywhere; }
+    .vline span.same,
+    .vline span.tail { color: var(--teal); font-weight: 700; }
+    .vline span.struck { color: #b7ada3; text-decoration: line-through; }
+    .vline span.place { color: var(--muted); font-size: 0.85rem; margin-bottom: auto; }
+    .vline span.tail { color: var(--ink); font-size: 1.15rem; font-weight: 750; margin-top: 8px; }
+    .vline { display: flex; flex-direction: column; justify-content: space-between; height: 100%; }
+    .algo-list { display: grid; gap: 8px; }
+    .algo-if { background: #fff4e8; border: 1px solid #f0d2b0; border-radius: 12px; padding: 12px 14px; }
+    .algo-if strong { display: block; margin-bottom: 4px; }
+    .abs-wrap { display: grid; grid-template-rows: 1fr auto 1fr; height: 100%; min-height: 0; gap: 10px; }
+    .abs-list { list-style: none; margin: 0; padding: 0; overflow: auto; display: flex; flex-direction: column; gap: 6px; }
+    .abs-list li.kept { background: #f3faf7; border-color: #c5ddd7; }
+    .abs-list li.gone strong { position: relative; color: #8d8d8d; width: fit-content; }
+    .abs-list li.out { max-height: 0; opacity: 0; transform: translateX(40px); padding-top: 0; padding-bottom: 0; border-width: 0; overflow: hidden; }
+    .abs-num { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: #fff; font-size: 0.75rem; font-weight: 700; }
+    .abs-list li.kept .abs-num { background: var(--teal); }
+    .abs-mid { align-self: center; padding: 12px 14px; background: #fff; border: 1px solid var(--line); border-radius: 12px; }
+    .abs-mid h2 { margin: 0 0 4px; font-size: 1rem; }
+    .abs-mid p { margin: 0; color: var(--muted); font-size: 0.9rem; line-height: 1.4; }
+    .abs-jobs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; overflow: auto; }
+    .abs-job { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; }
+    .abs-job strong { display: block; color: var(--teal); margin-bottom: 4px; }
+    .abs-job span { display: inline-block; margin: 2px 6px 0 0; font-size: 0.78rem; }
+    .abs-job span.gone-line { position: relative; color: #8d8d8d; }
+    .abs-job span.gone-line::after { content: ""; position: absolute; left: 0; top: 0.62em; width: 100%; height: 2px; background: #111; transform: scaleX(0); transform-origin: left center; animation: slice-out .8s ease forwards; }
+    .abs-job span.out { display: none; }
+    .abs-job.only { border-color: var(--teal); }
+    .abs-board { display: grid; grid-template-columns: 1.1fr .9fr 1fr 1.05fr; grid-template-rows: 1fr 1fr; gap: 8px 18px; height: 100%; }
+    .abs-cluster { position: relative; display: flex; flex-wrap: wrap; align-content: center; justify-content: center; gap: 8px 10px; padding: 18px 8px; border: 0; background: transparent; }
+    .abs-cluster:nth-child(odd) { align-content: flex-end; }
+    .abs-cluster:nth-child(3n) { align-content: flex-start; }
+    .abs-chip { position: relative; padding: 9px 12px; background: #fff; border: 1px solid var(--line); border-radius: 12px; font-style: normal; font-size: 0.9rem; font-weight: 650; animation: drift 5.5s ease-in-out infinite; }
+    @keyframes drift { 50% { translate: 6px -8px; } }
+    .abs-chip.fuse { animation: fuse .7s ease forwards; }
+    @keyframes fuse { to { opacity: 0; transform: scale(.35); } }
+    .abs-core { display: grid; place-items: center; min-width: 140px; min-height: 64px; padding: 12px 16px; background: #fff; border: 2px solid var(--teal); border-radius: 14px; color: var(--ink); font-size: 1.05rem; animation: pop .45s .4s both; }
+    @keyframes pop { from { opacity: 0; transform: scale(.7); } to { opacity: 1; transform: none; } }
+    .abs-plan { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; align-content: center; height: 100%; padding: 18px; }
+    .abs-term { display: grid; place-items: center; min-height: 84px; padding: 14px; background: #fff; border: 2px solid var(--teal); border-radius: 14px; font-size: 1.05rem; font-weight: 700; text-align: center; }
+    .flow-wrap { height: 100%; overflow: auto; display: flex; flex-direction: column; align-items: center; padding: 8px 0 24px; }
+    .flow-wrap h2 { margin: 0 0 8px; font-size: 1.2rem; }
+    .flow { display: flex; flex-direction: column; align-items: center; width: min(420px, 100%); }
+    .flow .tag { font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: #8a7f72; margin: 10px 0 4px; }
+    .flow .node { width: 100%; max-width: 250px; border: 2px solid #cbbca8; background: #fff; padding: 8px 10px; text-align: center; border-radius: 8px; font-weight: 650; }
+    .flow .startend { border-radius: 999px; background: #2f6f6a; color: #fff; border-color: #2f6f6a; }
+    .flow .decision { width: 108px; height: 108px; display: flex; align-items: center; justify-content: center; background: #fff8e8; clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); }
+    .flow .arrow { width: 2px; height: 14px; background: #7a6f62; position: relative; }
+    .flow .arrow:after { content: ""; position: absolute; left: -4px; bottom: -1px; border: 5px solid transparent; border-top-color: #7a6f62; }
+    .flow .fork { width: 100%; max-width: 320px; }
+    .flow .fork-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .flow .col { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+    .flow .lbl { font-size: 11px; font-weight: 700; color: #6a6258; }
+    .flow .loop-wrap { position: relative; width: 140px; display: flex; justify-content: center; }
+    .flow .side-loop { position: absolute; right: -28px; top: 16px; bottom: 16px; width: 26px; border: 2px solid #7a6f62; border-left: none; border-radius: 0 8px 8px 0; }
+    .flow .side-loop:before { content: "No"; position: absolute; left: 8px; top: 36%; font-size: 11px; font-weight: 700; color: #6a6258; }
+    .handoff { height: 100%; display: grid; grid-template-columns: 1fr 28px 1fr 28px 1fr 28px 1fr; gap: 8px; align-items: center; padding: 12px; }
+    .handoff article { background: #fff; border: 1px solid var(--line); border-top: 6px solid var(--teal); border-radius: 12px; padding: 14px; }
+    .handoff b { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; background: var(--ink); color: #fff; margin-bottom: 8px; }
+    .handoff strong { display: block; margin-bottom: 6px; }
+    .handoff span { color: var(--muted); font-size: 0.85rem; line-height: 1.4; }
+    .harrow { text-align: center; color: var(--teal); font-size: 1.4rem; font-weight: 700; }
+    .handoff-plan { display: grid; grid-template-columns: 1fr 80px; grid-template-rows: auto 1fr; height: 100%; min-height: 0; gap: 6px 10px; }
+    .handoff-plan h2 { grid-column: 1 / -1; }
+    .handoff-plan h2 { margin: 0; font-size: 1.25rem; }
+    .handoff-plan .algo-list { display: grid; grid-template-rows: repeat(8, minmax(0, 1fr)); gap: 4px; min-height: 0; height: 100%; }
+    .handoff-plan .endplan { padding: 4px 8px; min-height: 0; }
+    .fn-dock { display: flex; flex-direction: column; justify-content: space-between; min-height: 0; }
+    .fn-chip, .fn-slot.filled { display: inline-block; background: transparent; border: 0; transition: left .45s ease, top .45s ease; }
+    .recipe { width: 64px; padding: 3px; background: #fffaf3; border: 1px solid var(--line); border-radius: 6px; display: flex; flex-direction: column; align-items: center; gap: 1px; }
+    .rpill { width: 22px; height: 6px; background: #2f6f6a; border-radius: 99px; font-size: 0; }
+    .rbox { width: 28px; height: 5px; background: #fff; border: 1px solid #cbbca8; border-radius: 2px; font-size: 0; }
+    .rdia { width: 16px; height: 16px; background: #fff8e8; clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); font-size: 0; }
+    .rfork { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; }
+    .rfork em { width: 12px; height: 5px; background: #fff; border: 1px solid #cbbca8; border-radius: 2px; font-size: 0; }
+    .rarrow { width: 1px; height: 3px; background: #7a6f62; }
+    .fn-slot { width: 64px; min-height: 28px; }
+    .endplan { grid-template-columns: 28px 1fr auto; }
+
+
+
+
+
+    @keyframes slice-out { to { transform: scaleX(1); } }
+
+
+    .xform-head { font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); font-weight: 700; margin-bottom: 4px; }
+    .xform-row { margin-bottom: 8px; }
+    .xform-plan { border-color: var(--teal); }
+    .xform-plan strong { display: block; font-size: 0.92rem; }
+    .xform-plan span, .xform-source span { display: block; color: var(--muted); font-size: 0.75rem; line-height: 1.35; margin-top: 2px; }
+    .xform-arrow { text-align: center; color: var(--teal); font-size: 1.2rem; font-weight: 700; }
+    .how-chip.struck { color: #b7ada3; text-decoration: line-through; background: #f6f1ea; }
+    .xform-row.waiting .xform-plan { opacity: 0.35; }
+    .xform-row.done .xform-source { opacity: 0.4; }
+    .plan-out { display: grid; gap: 8px; }
+    .plan-out strong { display: block; }
+    .plan-out span { color: var(--muted); font-size: 0.78rem; }
+    .layer-col { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+    .layer-col h2 { margin: 0; font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+    .layer-col.off { opacity: 0.38; }
+    .layer-arrow { display: flex; align-items: center; justify-content: center; color: var(--teal); font-size: 1.4rem; font-weight: 700; }
+    .broad, .mid, .endplan {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px 12px;
+    }
+    .broad strong, .mid strong, .endplan strong { display: block; font-size: 0.92rem; }
+    .broad span, .mid span, .endplan span { display: block; margin-top: 3px; color: var(--muted); font-size: 0.76rem; line-height: 1.35; }
+    .endplan { border-left: 6px solid var(--teal); display: grid; grid-template-columns: 28px 1fr; gap: 8px; align-items: center; }
+    .endplan b { width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; background: var(--ink); color: #fff; font-size: 0.8rem; }
+
+
+    #lines.plan-on { overflow: auto; display: block; }
+    .plan { display: flex; flex-direction: column; gap: 10px; min-height: 100%; }
+    .plan-layer.dim { opacity: 0.38; }
+    .plan-layer h2 { margin: 0 0 4px; font-size: 0.98rem; letter-spacing: -0.02em; text-transform: none; color: var(--ink); }
+    .plan-layer p { margin: 0; color: var(--muted); font-size: 0.84rem; line-height: 1.4; }
+    .modules { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 8px; }
+    .module { background: #fffaf3; border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; }
+    .module strong { display: block; font-size: 0.86rem; margin-bottom: 4px; }
+    .chips { display: flex; flex-wrap: wrap; gap: 4px; }
+    .chip { background: #eef3f1; border-radius: 999px; padding: 3px 8px; font-size: 0.72rem; font-weight: 700; color: var(--ink); }
+    table.contract { width: 100%; border-collapse: collapse; font-size: 0.78rem; margin-top: 8px; }
+    table.contract th, table.contract td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+    table.contract th { background: var(--ink); color: #fff; font-weight: 700; }
+    .hide-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 8px; }
+    .hide-card { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; }
+    .hide-card strong { display: block; margin-bottom: 2px; }
+    .hide-card span { color: var(--muted); font-size: 0.75rem; line-height: 1.35; }
+
+    .kept-card p { margin: 0; color: var(--muted); font-size: 0.95rem; line-height: 1.4; }
+    #hover-name {
+      margin-top: auto;
+      min-height: 40px;
+      padding-top: 8px;
+      font-size: 0.95rem;
+      font-weight: 650;
+      letter-spacing: -0.02em;
+      color: var(--ink);
+    }
+    #fit {
+      text-align: center;
+    }
+</style>
+</head>
+<body>
+  <div id="stage">
+    <div id="world">
+      <svg id="links"></svg>
+      <div id="nodes"></div>
+    </div>
+    <div id="lines"></div>
+    <div id="zoom">
+      <button id="zin" type="button" aria-label="Zoom in">+</button>
+      <button id="zout" type="button" aria-label="Zoom out">−</button>
+    </div>
+  </div>
+  <aside id="side">
+    <div class="tabs">
+      <button class="tab active" data-panel="decomposition" type="button">Decomposition</button>
+      <button class="tab" data-panel="pattern" type="button">Pattern recognition</button>
+      <button class="tab" data-panel="abstraction" type="button">Abstraction</button>
+      <button class="tab" data-panel="algorithm" type="button">Algorithmic thinking</button>
+    </div>
+    <h1>Charity event</h1>
+    <p class="quiet" id="tab-line">Split the event until a box is a job.</p>
+    <section class="panel on" id="panel-decomposition">
+      <div class="pair">
+        <button id="back" type="button">Back</button>
+        <button id="forward" type="button">Next</button>
+      </div>
+      <div class="steps" id="decomp-steps"></div>
+    </section>
+    <section class="panel" id="panel-pattern">
+      <div class="pair">
+        <button id="pback" type="button">Back</button>
+        <button id="pforward" type="button">Next</button>
+      </div>
+      <div class="steps" id="pattern-steps"></div>
+    </section>
+    <section class="panel" id="panel-abstraction">
+      <div class="pair">
+        <button id="aback" type="button">Back</button>
+        <button id="aforward" type="button">Next</button>
+      </div>
+      <div class="steps" id="abs-steps"></div>
+    </section>
+    <section class="panel" id="panel-algorithm">
+      <div class="pair">
+        <button id="gback" type="button">Back</button>
+        <button id="gforward" type="button">Next</button>
+      </div>
+      <div class="steps" id="algo-steps"></div>
+    </section>
+    <button id="fit" type="button">Full Tree View</button>
+    <div id="hover-name"></div>
+  </aside>
+
+<script>
+/* Branch colours for the tree boxes. */
+const COLORS = { all: "#c45c26", gather: "#2f6f6a", experience: "#c45c26", donations: "#3e6b48" };
+
+/* The event, split until a box is a job. kind is hidden and only used by pattern matching. */
+const tree = {
+  name: "Charity event", branch: "all", children: [
+    { name: "Gathering", branch: "gather", children: [
+      { name: "Time", children: [
+        { name: "Friday 14 May" },
+        { name: "Doors at 6pm" },
+        { name: "Finish at 9pm" },
+        { name: "Arrive by 5:45" }
+      ]},
+      { name: "Place", children: [
+        { name: "Book the hall", children: [
+          { name: "Pay the deposit", children: [
+            { name: "Move the chairs", kind: "logistics", children: [{ name: "Hall deposit", kind: "money" }] },
+            { name: "Door volunteer", children: [{ name: "Brief the door volunteer", kind: "training" }] }
+          ]}
+        ]},
+        { name: "Check the room", children: [
+          { name: "Measure the doorway", children: [{ name: "Note the step", kind: "logistics" }] },
+          { name: "Reserve a stall pitch", children: [{ name: "Mark the pitch", kind: "logistics" }] }
+        ]},
+        { name: "Floor plan", children: [
+          { name: "No running by the urn" }, { name: "Raffle prizes" }, { name: "Photo backdrop" },
+          { name: "Game staff rota" },
+          { name: "Game boxes", children: [{ name: "Collect the game boxes", kind: "logistics" }] }
+        ]}
+      ]},
+      { name: "Gathering people", children: [
+        { name: "Invitations", children: [
+          { name: "Email the guest list" }, { name: "Text the volunteers" },
+          { name: "Run sheet", children: [{ name: "Post the invitations" }] },
+          { name: "Tick the RSVPs" }
+        ]},
+        { name: "Creating a list", children: [
+          { name: "Hall address" }, { name: "54 coming" },
+          { name: "Friday 6pm" }, { name: "6 vegan" },
+          { name: "Cap at 80" }
+        ]}
+      ]},
+      { name: "Atmosphere", children: [
+        { name: "Host", children: [
+          { name: "Welcome desk", children: [
+            { name: "Name badges" },
+            { name: "Welcome volunteer", children: [{ name: "Brief the welcome desk", kind: "training" }] },
+            { name: "Spare chairs", kind: "logistics" }
+          ]}
+        ]},
+        { name: "Music", children: [
+          { name: "DJ", children: [
+            { name: "Show the DJ the desk", kind: "training" }, { name: "Agreed playlist" }, { name: "Spare cable", kind: "logistics" }
+          ]},
+          { name: "Music licence", children: [{ name: "File the licence", kind: "logistics" }] }
+        ]},
+        { name: "Decorations", children: [
+          { name: "Fairy lights" }, { name: "Printed backdrop" },
+          { name: "Sponsor board", children: [{ name: "Board cost", kind: "money" }] },
+          { name: "Borrow the lights", kind: "logistics" }
+        ]}
+      ]}
+    ]},
+    { name: "Experience", branch: "experience", children: [
+      { name: "Programme", children: [
+        { name: "Show", children: [
+          { name: "Opening speech" }, { name: "Two pupils" }, { name: "Handheld mic" },
+          { name: "Show crew", children: [{ name: "Cue the speeches", kind: "training" }, { name: "Mic hire", kind: "money" }] }
+        ]},
+        { name: "Stalls", children: [
+          { name: "Bakery table" }, { name: "Serve the queue" },
+          { name: "Stall team", children: [{ name: "Brief the stall team", kind: "training" }] },
+          { name: "Stall cloths", kind: "logistics", children: [{ name: "Stall float", kind: "money" }] }
+        ]},
+        { name: "Games", children: [
+          { name: "One go each" }, { name: "Prize bag" }, { name: "Hook-a-duck" },
+          { name: "Games volunteer", children: [{ name: "Brief the game staff", kind: "training" }] },
+          { name: "Duck set", children: [{ name: "Unpack the games", kind: "logistics" }] }
+        ]}
+      ]},
+      { name: "Refreshments", children: [
+        { name: "Food", children: [
+          { name: "40 muffins" }, { name: "6 vegan plates" }, { name: "Paper plates" },
+          { name: "Collect the food", kind: "logistics", children: [{ name: "Bakery invoice", kind: "money" }] }
+        ]},
+        { name: "Drinks", children: [
+          { name: "Still water" }, { name: "Orange soda" }, { name: "60 cups" }, { name: "Spare plates" },
+          { name: "Ice and cups", kind: "logistics", children: [{ name: "Drinks receipt", kind: "money" }] }
+        ]}
+      ]}
+    ]},
+    { name: "Donations", branch: "donations", children: [
+      { name: "Method of donation", children: [
+        { name: "Monetary", children: [
+          { name: "Cash tin", children: [
+            { name: "Person on the tin" }, { name: "Cash register" }
+          ]},
+          { name: "Card machine" },
+          { name: "Lock the tin", children: [{ name: "Count the tin", kind: "training" }] },
+          { name: "Bank the cash", kind: "logistics" }
+        ]},
+        { name: "Voluntary service", children: [
+          { name: "Cause leaflets" }, { name: "Host a stall" },
+          { name: "Travel money", children: [
+            { name: "Bus fare" }, { name: "Volunteer fares", kind: "money" }
+          ]},
+          { name: "Spare hi-vis", kind: "logistics" }
+        ]}
+      ]}
+    ]}
+  ]
+};
+
+const GAP_X = 10;
+const GAP_Y = 18;
+let tight = false;
+const PAD = 24;
+
+const nodes = [];
+const links = [];
+let maxDepth = 0;
+let branchFilter = "all";
+let focusOpen = null;
+let scale = 1;
+let panX = 40;
+let panY = 36;
+let hoverId = null;
+const glowSet = new Set();
+
+const stage = document.getElementById("stage");
+const world = document.getElementById("world");
+const svg = document.getElementById("links");
+const nodeLayer = document.getElementById("nodes");
+const hoverName = document.getElementById("hover-name");
+
+function walk(node, parent, branch, depth) {
+  const b = node.branch || branch;
+  const rec = {
+    id: nodes.length,
+    name: node.name,
+    kind: node.kind || "",
+    branch: b,
+    depth,
+    parent,
+    children: [],
+    el: null,
+    w: 0, h: 0, x: 0, y: 0,
+    phase: Math.random() * Math.PI * 2
+  };
+  nodes.push(rec);
+  if (parent) parent.children.push(rec);
+  (node.children || []).forEach(ch => walk(ch, rec, b, depth + 1));
+  return rec;
+}
+const HUES = {
+  all: { fill: "#fffaf3", line: "#c45c26" },
+  gather: { fill: "#eaf3f1", line: "#2f6f6a" },
+  experience: { fill: "#fff3e8", line: "#c45c26" },
+  donations: { fill: "#e7f2e8", line: "#3e6b48" }
+};
+const OUTLINES = {
+  gather: ["#2f6f6a", "#1a73e8", "#3e6b48", "#5a8f7a"],
+  experience: ["#c45c26", "#a34a1c", "#d4784a"],
+  donations: ["#3e6b48", "#2f6f6a", "#5c8a55"]
+};
+
+walk(tree, null, "all", 0);
+
+function outlineOf(n) {
+  if (n.depth === 0) return HUES.all.line;
+  let top = n;
+  while (top.parent && top.parent.depth > 0) top = top.parent;
+  const shades = OUTLINES[top.branch] || [HUES[top.branch].line];
+  let fam = n;
+  while (fam.parent && fam.parent !== top) fam = fam.parent;
+  const index = Math.max(0, top.children.indexOf(fam));
+  return shades[index % shades.length];
+}
+
+nodes.forEach(n => {
+  const el = document.createElement("div");
+  el.className = "box" + (n.depth === 0 ? " root" : "");
+  el.textContent = n.name;
+  el.dataset.id = n.id;
+  el.style.borderColor = outlineOf(n);
+  nodeLayer.appendChild(el);
+  n.el = el;
+  n.line = outlineOf(n);
+  el.addEventListener("pointerenter", () => setHover(n.id));
+  el.addEventListener("pointerleave", () => setHover(null));
+});
+
+function visible(n) {
+  if (n.depth > maxDepth) return false;
+  if (branchFilter !== "all" && n.depth > 0 && n.branch !== branchFilter) return false;
+  if (!focusOpen || n.depth === 0) return true;
+  let p = n.parent;
+  while (p && p.depth > 0) {
+    if (!focusOpen.includes(p.name)) return false;
+    p = p.parent;
+  }
+  return true;
+}
+
+function measure() {
+  nodes.forEach(n => {
+    n.el.style.display = visible(n) ? "block" : "none";
+    if (!visible(n)) return;
+    n.w = n.el.offsetWidth;
+    n.h = n.el.offsetHeight;
+  });
+}
+
+function packDeep(n) {
+  const kids = n.children.filter(visible);
+  kids.forEach(packDeep);
+  if (n.depth < 2 || !kids.length) {
+    n.bw = n.w;
+    n.bh = n.h;
+    return;
+  }
+  const gx = tight ? -14 : GAP_X;
+  const gy = tight ? 2 : GAP_Y;
+  const cols = Math.min(kids.length, tight ? 3 : 2);
+  const rows = [];
+  for (let i = 0; i < kids.length; i += cols) rows.push(kids.slice(i, i + cols));
+  const rowW = rows.map(r => r.reduce((s, k) => s + k.bw, 0) + gx * (r.length - 1));
+  const rowH = rows.map(r => Math.max(...r.map(k => k.bh)));
+  n.bw = Math.max(n.w, Math.max(...rowW));
+  n.bh = n.h + gy + rowH.reduce((s, h) => s + h, 0) + gy * (rows.length - 1);
+  let y = n.h + gy;
+  rows.forEach((r, ri) => {
+    let x = (n.bw - rowW[ri]) / 2;
+    r.forEach(k => {
+      k.blockX = x;
+      k.blockY = y;
+      x += k.bw + gx;
+    });
+    y += rowH[ri] + gy;
+  });
+}
+
+function assignDeep(n, left, top) {
+  n.x = left + (n.bw - n.w) / 2;
+  n.y = top;
+  n.children.filter(visible).forEach(k => {
+    if (k.blockX == null) return;
+    assignDeep(k, left + k.blockX, top + k.blockY);
+  });
+}
+
+function layout() {
+  measure();
+  nodes.forEach(n => { n.blockX = null; n.blockY = null; n.bw = n.w; n.bh = n.h; });
+  nodes.filter(visible).forEach(packDeep);
+  const root = nodes[0];
+  const row1 = root.children.filter(visible);
+  const gap = tight ? -6 : GAP_X + 8;
+  const band = tight ? 8 : 28;
+  let cursor = PAD;
+  const y0 = PAD;
+  const y1 = y0 + root.h + band;
+  const h1 = Math.max(root.h, ...row1.map(n => n.h), 0);
+  const y2 = y1 + h1 + band;
+  const row2 = nodes.filter(n => visible(n) && n.depth === 2);
+  const h2 = Math.max(0, ...row2.map(n => n.h));
+
+  row1.forEach(p => {
+    const kids = p.children.filter(visible);
+    const slots = kids.map(k => Math.max(k.w, k.bw || k.w));
+    const used = slots.reduce((s, w) => s + w, 0) + gap * Math.max(0, slots.length - 1);
+    const groupW = Math.max(p.w, used);
+    let x = cursor + Math.max(0, (groupW - used) / 2);
+    kids.forEach((k, i) => {
+      assignDeep(k, x, y2);
+      x += slots[i] + gap;
+    });
+    p.x = cursor + (groupW - p.w) / 2;
+    p.y = y1;
+    cursor += groupW + (tight ? 6 : gap * 2);
+  });
+  if (!row1.length) {
+    root.x = PAD;
+    root.y = y0;
+  } else {
+    const left = Math.min(...row1.map(n => n.x));
+    const right = Math.max(...row1.map(n => n.x + n.w));
+    root.x = left + (right - left - root.w) / 2;
+    root.y = y0;
+  }
+  if (!tight) {
+    spreadRow(nodes.filter(n => visible(n) && n.depth === 1));
+    spreadRow(nodes.filter(n => visible(n) && n.depth === 2));
+    separateBoxes();
+    uncrossLines();
+  }
+  let maxX = PAD, maxY = PAD;
+  nodes.forEach(n => {
+    if (!visible(n)) return;
+    maxX = Math.max(maxX, n.x + n.w);
+    maxY = Math.max(maxY, n.y + n.h);
+  });
+  const W = maxX + PAD;
+  const H = maxY + PAD;
+  world.style.width = W + "px";
+  world.style.height = H + "px";
+  svg.setAttribute("width", W);
+  svg.setAttribute("height", H);
+  links.length = 0;
+  svg.replaceChildren();
+  nodes.forEach(n => {
+    if (!visible(n) || !n.parent || !visible(n.parent)) return;
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("fill", "none");
+    path.setAttribute("stroke", n.line);
+    path.setAttribute("stroke-width", "1.8");
+    path.setAttribute("stroke-linejoin", "round");
+    path.setAttribute("stroke-linecap", "round");
+    svg.appendChild(path);
+    links.push({ parent: n.parent, child: n, path });
+  });
+  draw();
+}
+
+function spreadRow(row) {
+  const ordered = row.slice().sort((a, b) => a.x - b.x);
+  for (let i = 1; i < ordered.length; i++) {
+    const need = ordered[i - 1].x + ordered[i - 1].w + GAP_X - ordered[i].x;
+    if (need > 0) shiftFrom(ordered[i], need);
+  }
+}
+
+function shiftFrom(n, dx) {
+  n.x += dx;
+  n.children.filter(visible).forEach(c => shiftFrom(c, dx));
+}
+
+function boxesOverlap(a, b) {
+  return a.x < b.x + b.w + 4 && a.x + a.w + 4 > b.x && a.y < b.y + b.h + 4 && a.y + a.h + 4 > b.y;
+}
+
+function separateBoxes() {
+  const vis = nodes.filter(visible);
+  for (let pass = 0; pass < 6; pass++) {
+    let moved = false;
+    for (let i = 0; i < vis.length; i++) {
+      for (let j = i + 1; j < vis.length; j++) {
+        const a = vis[i], b = vis[j];
+        if (!boxesOverlap(a, b)) continue;
+        const dir = (a.x + a.w / 2) <= (b.x + b.w / 2) ? 1 : -1;
+        shiftFrom(b, dir * 8);
+        moved = true;
+      }
+    }
+    if (!moved) break;
+  }
+}
+
+function segmentsCross(a, b, c, d) {
+  function side(p, q, r) {
+    return (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
+  }
+  const ab = side(a, b, c) * side(a, b, d);
+  const cd = side(c, d, a) * side(c, d, b);
+  return ab < 0 && cd < 0;
+}
+
+function uncrossLines() {
+  const edges = nodes.filter(n => visible(n) && n.parent && visible(n.parent)).map(n => ({
+    parent: n.parent,
+    child: n,
+    a: { x: n.parent.x + n.parent.w / 2, y: n.parent.y + n.parent.h },
+    b: { x: n.x + n.w / 2, y: n.y }
+  }));
+  for (let pass = 0; pass < 4; pass++) {
+    let moved = false;
+    for (let i = 0; i < edges.length; i++) {
+      for (let j = i + 1; j < edges.length; j++) {
+        const e = edges[i], f = edges[j];
+        if (e.parent === f.parent || e.child === f.parent || f.child === e.parent) continue;
+        if (!segmentsCross(e.a, e.b, f.a, f.b)) continue;
+        const outward = e.b.x >= e.a.x ? 10 : -10;
+        shiftFrom(e.child, outward);
+        e.b.x += outward;
+        moved = true;
+      }
+    }
+    if (!moved) break;
+  }
+}
+
+function draw() {
+  nodes.forEach(n => {
+    if (!visible(n)) return;
+    n.el.style.transform = `translate(${n.x}px, ${n.y}px)`;
+  });
+  const color = hoverId == null ? null : (COLORS[nodes[hoverId].branch] || COLORS.all);
+  links.forEach(l => {
+    const x1 = l.parent.x + l.parent.w / 2;
+    const y1 = l.parent.y + l.parent.h;
+    const x2 = l.child.x + l.child.w / 2;
+    const y2 = l.child.y;
+    const lane = y1 + 12 + (l.parent.id % 3) * 4;
+    l.path.setAttribute("d", `M ${x1} ${y1} L ${x1} ${lane} L ${x2} ${lane} L ${x2} ${y2}`);
+    const hot = glowSet.has(l.parent.id) && glowSet.has(l.child.id) && hoverId != null;
+    const line = hot ? color : l.child.line;
+    l.path.setAttribute("stroke", line);
+    l.path.setAttribute("stroke-width", hot ? "2.2" : "1.4");
+    l.path.style.filter = hot ? `drop-shadow(0 0 4px ${color})` : "none";
+  });
+}
+
+function applyTransform() {
+  world.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
+}
+
+function separateHighlights() {
+  const hot = nodes.filter(n => visible(n) && n.el.classList.contains("glow"));
+  for (let pass = 0; pass < 20; pass++) {
+    let moved = false;
+    for (let i = 0; i < hot.length; i++) {
+      for (let j = i + 1; j < hot.length; j++) {
+        const a = hot[i], b = hot[j];
+        if (!boxesOverlap(a, b)) continue;
+        const dx = (b.x + b.w / 2) - (a.x + a.w / 2);
+        const dy = (b.y + b.h / 2) - (a.y + a.h / 2);
+        if (Math.abs(dx) >= Math.abs(dy)) {
+          const dir = dx === 0 || dx > 0 ? 1 : -1;
+          const need = a.w / 2 + b.w / 2 + 10 - Math.abs(dx);
+          b.x += dir * Math.max(8, need);
+        } else {
+          const dir = dy === 0 || dy > 0 ? 1 : -1;
+          const need = a.h / 2 + b.h / 2 + 10 - Math.abs(dy);
+          b.y += dir * Math.max(8, need);
+        }
+        moved = true;
+      }
+    }
+    if (!moved) break;
+  }
+  let maxX = PAD, maxY = PAD;
+  nodes.forEach(n => {
+    if (!visible(n)) return;
+    maxX = Math.max(maxX, n.x + n.w);
+    maxY = Math.max(maxY, n.y + n.h);
+  });
+  const W = maxX + PAD;
+  const H = maxY + PAD;
+  world.style.width = W + "px";
+  world.style.height = H + "px";
+  svg.setAttribute("width", W);
+  svg.setAttribute("height", H);
+  draw();
+}
+
+function focusHighlights() {
+  const hot = nodes.filter(n => visible(n) && n.el.classList.contains("glow"));
+  if (!hot.length) return fit();
+  const minX = Math.min(...hot.map(n => n.x));
+  const minY = Math.min(...hot.map(n => n.y));
+  const maxX = Math.max(...hot.map(n => n.x + n.w));
+  const maxY = Math.max(...hot.map(n => n.y + n.h));
+  const sw = stage.clientWidth;
+  const sh = stage.clientHeight;
+  const ww = Math.max(120, maxX - minX + 72);
+  const wh = Math.max(80, maxY - minY + 72);
+  scale = Math.min(sw / ww, sh / wh, 1.7);
+  panX = (sw - (minX + maxX) * scale) / 2;
+  panY = (sh - (minY + maxY) * scale) / 2;
+  applyTransform();
+}
+
+function fit() {
+  const sw = stage.clientWidth;
+  const sh = stage.clientHeight;
+  const ww = parseFloat(world.style.width) || sw;
+  const wh = parseFloat(world.style.height) || sh;
+  scale = Math.min((sw - 28) / ww, (sh - 28) / wh, 1.15);
+  panX = (sw - ww * scale) / 2;
+  panY = (sh - wh * scale) / 2;
+  applyTransform();
+}
+
+function setHover(id) {
+  hoverId = id;
+  glowSet.clear();
+  nodes.forEach(n => n.el.classList.remove("glow"));
+  if (id == null) {
+    hoverName.textContent = "";
+    draw();
+    return;
+  }
+  const n = nodes[id];
+  hoverName.textContent = n.name;
+  const color = COLORS[n.branch] || COLORS.all;
+  let p = n;
+  while (p) { glowSet.add(p.id); p = p.parent; }
+  const stack = [n];
+  while (stack.length) {
+    const cur = stack.pop();
+    glowSet.add(cur.id);
+    cur.children.forEach(c => { if (visible(c)) stack.push(c); });
+  }
+  glowSet.forEach(gid => {
+    const el = nodes[gid].el;
+    el.classList.add("glow");
+    el.style.setProperty("--glow", color);
+  });
+  draw();
+}
+
+document.getElementById("fit").onclick = () => { hideLines(); fit(); };
+document.getElementById("zin").onclick = () => { scale = Math.min(1.8, scale * 1.15); applyTransform(); };
+document.getElementById("zout").onclick = () => { scale = Math.max(0.2, scale / 1.15); applyTransform(); };
+/* Decomposition walk. Each step opens one layer and highlights one box. */
+const STEPS = [
+  { depth: 0, say: "Can one person do this today? No. So it splits.", point: "Stop when someone could do this box.", spot: ["Charity event"], open: [] },
+  { depth: 1, say: "Getting people there is one of the three jobs. Still too big.", point: "Stop when someone could do this box.", spot: ["Gathering"], open: ["Charity event"] },
+  { depth: 2, say: "Gathering people is still a heading, not a task.", point: "Stop when someone could do this box.", spot: ["Gathering people"], open: ["Gathering"] },
+  { depth: 3, say: "Invitations is still too big to hand to someone.", point: "Stop when someone could do this box.", spot: ["Invitations"], open: ["Gathering", "Gathering people"] },
+  { depth: 4, say: "Email is one of the invitation jobs. Do not skip it.", point: "Stop when someone could do this box.", spot: ["Email the guest list"], open: ["Gathering", "Gathering people", "Invitations"] },
+  { depth: 4, say: "A schedule is closer, but it is not the job yet.", point: "Stop when someone could do this box.", spot: ["Run sheet"], open: ["Gathering", "Gathering people", "Invitations"] },
+  { depth: 5, say: "Posting the invitations is a job someone could do today. Stop.", point: "Stop when someone could do this box.", spot: ["Post the invitations"], open: ["Gathering", "Gathering people", "Invitations", "Run sheet"] },
+  { depth: 6, say: "The other branches were split the same way. That is decomposition.", point: "Stop when someone could do this box.", spot: ["Gathering", "Experience", "Donations"], open: null }
+];
+let step = 0;
+const promptEl = document.getElementById("prompt");
+const pointEl = document.getElementById("point");
+
+function hideLines() {
+  const lines = document.getElementById("lines");
+  lines.classList.remove("on", "plan-on");
+}
+
+function fadeStage(fn) {
+  stage.classList.add("switching");
+  setTimeout(() => { fn(); requestAnimationFrame(() => stage.classList.remove("switching")); }, 180);
+}
+function showStep(i) {
+  tight = false;
+  hideLines();
+  step = Math.max(0, Math.min(STEPS.length - 1, i));
+  const s = STEPS[step];
+  maxDepth = s.depth;
+  focusOpen = s.open;
+  if (promptEl) promptEl.textContent = s.say;
+  if (pointEl) pointEl.textContent = s.point;
+  document.querySelectorAll("#decomp-steps button").forEach((b, n) => b.classList.toggle("active", n === step));
+  setHover(null);
+  layout();
+  nodes.forEach(n => {
+    n.el.classList.remove("arrive", "glow", "dim");
+    if (!visible(n)) return;
+    const onPath = !s.open || n.depth === 0 || s.spot.includes(n.name) || s.open.includes(n.name);
+    if (!onPath) n.el.classList.add("dim");
+    if (n.depth === s.depth && s.depth > 0) n.el.classList.add("arrive");
+    if (s.spot.includes(n.name)) {
+      n.el.classList.add("glow");
+      n.el.style.setProperty("--glow", COLORS[n.branch] || COLORS.all);
+    }
+  });
+}
+
+/* Pattern cards are matched by these names, not by the words on the boxes. */
+const TRAINING = ["Brief the door volunteer", "Brief the welcome desk", "Show the DJ the desk", "Cue the speeches", "Brief the stall team", "Brief the game staff", "Count the tin"];
+const LOGISTICS_MONEY = ["Hall deposit", "Stall float", "Bakery invoice", "Drinks receipt"];
+const JOBS = [
+  { title: "Highlighted Pattern: Training", glow: "#9ed9cf", names: TRAINING },
+  { title: "Highlighted Pattern: Money & Logistics", glow: "#f3c39a", names: LOGISTICS_MONEY }
+];
+const PATTERNS = [
+  { view: "tree", spot: [] },
+  { view: "tree", spot: TRAINING, glow: "#9ed9cf" },
+  { view: "tree", spot: LOGISTICS_MONEY, glow: "#f3c39a" },
+  { view: "lines" }
+];
+let patternStep = 0;
+let mode = "decomposition";
+
+function collectPaths(node, path, out) {
+  const next = path.concat({ name: node.name, kind: node.kind || "" });
+  out.push(next);
+  (node.children || []).forEach(ch => collectPaths(ch, next, out));
+}
+function isFamily(node, kind) {
+  const name = typeof node === "string" ? node : node.name;
+  const tagged = typeof node === "string" ? "" : (node.kind || "");
+  return tagged === kind || name.toLowerCase().includes(kind.toLowerCase());
+}
+function endsWith(path, suffix) {
+  if (path.length < suffix.length) return false;
+  return suffix.every((kind, i) => isFamily(path[path.length - suffix.length + i], kind));
+}
+function esc(value) {
+  return value.replace(/&/g, "&").replace(/</g, "<");
+}
+
+function showJobLines(strike) {
+  const paths = [];
+  collectPaths(tree, [], paths);
+  const root = document.getElementById("lines");
+  root.innerHTML = JOBS.map(job => {
+    const cols = paths.filter(path => job.names.includes(path[path.length - 1].name));
+    const columns = cols.map(col => {
+      const lines = col.map((item, i) => {
+        const hit = job.names.includes(item.name) || (job.names.includes(col[col.length - 1].name) && item.kind === "logistics" && i === col.length - 2);
+        const cls = hit ? "tail" : "";
+        return "<span class='" + cls + "'>" + esc(item.name) + "</span>";
+      }).join("");
+      return "<div class='vline' style='--card-glow:" + job.glow + "'>" + lines + "</div>";
+    }).join("");
+    const perRow = Math.max(1, Math.ceil(cols.length / 2));
+    return "<section class='line-group'><h2>" + esc(job.title) + "</h2><div class='line-row' style='--cols:" + perRow + "'>" + columns + "</div></section>";
+  }).join("");
+  root.classList.add("on");
+}
+
+
+/* Abstraction: boxes drift in groups, then fuse into the job name. */
+const ABS_LABELS = ["Clustered boxes", "Abstract"];
+let absStep = 0;
+const MODEL = [
+  { name: "Set Time", lines: ["Friday 14 May", "Doors at 6pm", "Finish at 9pm"] },
+  { name: "Location", lines: ["Book the hall", "Check the room"] },
+  { name: "Invitations", lines: ["54 coming", "6 vegan", "Cap at 80", "Email the guest list", "Text the volunteers", "Post the invitations"] },
+  { name: "Programme", lines: ["Opening speech", "Bakery table", "Hook-a-duck"] },
+  { name: "Food and drinks", lines: ["40 muffins", "6 vegan plates", "Still water", "Orange soda", "60 cups"] },
+  { name: "Logistics", lines: ["Name the thing needed", "Check the inventory", "Take it or buy it", "Update the inventory"] },
+  { name: "Costs", lines: ["Hall deposit", "Bakery invoice", "Drinks receipt", "Stall float"] },
+  { name: "Donation", lines: ["Cash tin", "Card machine", "Count the tin"] }
+];
+
+function showPlan(step) {
+  const root = document.getElementById("lines");
+  root.classList.add("plan-on", "on");
+  if (true) {
+    const clusters = MODEL.map(group => {
+      const chips = group.lines.map((line, n) => {
+        const x = (n % 3) * 14 - 10;
+        const y = (n % 2) * 16 - 4;
+        return "<i class='abs-chip" + (step === 1 ? " fuse" : "") + "' style='left:" + x + "px;top:" + y + "px;animation-delay:" + (step === 1 ? "0s" : (n * .4) + "s") + "'>" + esc(line) + "</i>";
+      }).join("");
+      const core = step === 1 ? "<b class='abs-core'>" + esc(group.name) + "</b>" : "";
+      return "<section class='abs-cluster'>" + chips + core + "</section>";
+    }).join("");
+    root.innerHTML = "<div class='abs-board'>" + clusters + "</div>";
+  }
+}
+
+function showAbstraction(i) {
+  mode = "abstraction";
+  tight = false;
+  hideLines();
+  absStep = Math.max(0, Math.min(ABS_LABELS.length - 1, i));
+  document.querySelectorAll("#abs-steps button").forEach((b, n) => b.classList.toggle("active", n === absStep));
+  showPlan(absStep);
+}
+
+
+
+/* Algorithm: two flowcharts, then the plan those recipes slot into. */
+const ALGO_LABELS = ["Invitations", "Logistics", "Handoff"];
+let algoStep = 0;
+function flowChart(title, body) {
+  return "<div class='flow-wrap'><h2>" + esc(title) + "</h2><div class='flow'>" + body + "</div></div>";
+}
+function showAlgorithm(i) {
+  mode = "algorithm";
+  hideLines();
+  algoStep = Math.max(0, Math.min(ALGO_LABELS.length - 1, i));
+  document.querySelectorAll("#algo-steps button").forEach((b, n) => b.classList.toggle("active", n === algoStep));
+  const root = document.getElementById("lines");
+  root.classList.add("plan-on", "on");
+  const invite = flowChart("Invitations",
+    "<div class='tag'>Start / End</div><div class='node startend'>START</div><div class='arrow'></div>"
+    + "<div class='tag'>Process</div><div class='node'>Record the person's name</div><div class='arrow'></div>"
+    + "<div class='node'>Write the invitation</div><div class='arrow'></div>"
+    + "<div class='tag'>Decision</div><div class='node decision'><span>Have an email?</span></div>"
+    + "<div class='fork'><div class='fork-cols'><div class='col'><div class='lbl'>Yes</div><div class='node'>Send the email</div></div><div class='col'><div class='lbl'>No</div><div class='node'>Send a text</div></div></div></div>"
+    + "<div class='arrow'></div><div class='node'>Wait for the reply</div><div class='arrow'></div>"
+    + "<div class='tag'>Loop</div><div class='loop-wrap'><div class='node decision'><span>Reply in?</span></div><div class='side-loop'></div></div>"
+    + "<div class='lbl'>Yes</div><div class='arrow'></div><div class='node'>Record the reply</div><div class='arrow'></div>"
+    + "<div class='node startend'>END</div>");
+  const logistics = flowChart("Logistics",
+    "<div class='tag'>Start / End</div><div class='node startend'>START</div><div class='arrow'></div>"
+    + "<div class='tag'>Process</div><div class='node'>Name the thing needed</div><div class='arrow'></div>"
+    + "<div class='node'>Check the inventory</div><div class='arrow'></div>"
+    + "<div class='tag'>Decision</div><div class='node decision'><span>Already have it?</span></div>"
+    + "<div class='fork'><div class='fork-cols'><div class='col'><div class='lbl'>Yes</div><div class='node'>Take it</div></div><div class='col'><div class='lbl'>No</div><div class='node'>Buy a new one</div></div></div></div>"
+    + "<div class='arrow'></div><div class='node'>Update the inventory</div><div class='arrow'></div>"
+    + "<div class='node startend'>END</div>");
+  function recipe(steps) {
+    return "<div class='recipe'>" + steps.map(step => {
+      if (step === "|") return "<i class='rarrow'></i>";
+      if (step === "?") return "<b class='rdia'></b>";
+      if (step === "fork") return "<span class='rfork'><em></em><em></em></span>";
+      return "<span class='rbox'></span>";
+    }).join("") + "</div>";
+  }
+  const plan = [
+    ["Set the date and hours", "date", ["step", "|", "step"]],
+    ["Book the venue", "venue", ["step", "|", "?", "|", "fork"]],
+    ["Invite the guests", "invite", ["step", "|", "?", "|", "fork", "|", "step"]],
+    ["Plan the programme", "programme", ["step", "|", "step", "|", "step"]],
+    ["Arrange food and drinks", "food", ["step", "|", "step", "|", "step"]],
+    ["Sort the kit", "logistics", ["step", "|", "step", "|", "?", "|", "fork", "|", "step"]],
+    ["Set the costs", "costs", ["step", "|", "step", "|", "step"]],
+    ["Take the donation", "donation", ["step", "|", "step"]]
+  ];
+  const rows = plan.map((row, n) => "<article class='endplan'><b>" + (n + 1) + "</b><div><strong>" + esc(row[0]) + "</strong></div><i class='fn-slot wait' data-fn='" + row[1] + "'></i></article>").join("");
+  const dock = plan.map(row => "<span class='fn-chip' data-fn='" + row[1] + "'>" + recipe(row[2]) + "</span>").join("");
+  const handoff = "<div class='handoff-plan'><h2>Charity Event Overall Plan</h2><div class='algo-list'>" + rows + "</div><div class='fn-dock'>" + dock + "</div></div>";
+  root.innerHTML = algoStep === 0 ? invite : algoStep === 1 ? logistics : handoff;
+  if (algoStep === 2) {
+    const chips = [...root.querySelectorAll(".fn-chip")];
+    function place(i) {
+      const chip = chips[i];
+      if (!chip) return;
+      const slot = root.querySelector(".fn-slot[data-fn='" + chip.dataset.fn + "']");
+      const from = chip.getBoundingClientRect();
+      const to = slot.getBoundingClientRect();
+      chip.style.position = "fixed";
+      chip.style.left = from.left + "px";
+      chip.style.top = from.top + "px";
+      chip.style.zIndex = "5";
+      requestAnimationFrame(() => { chip.style.left = to.left + "px"; chip.style.top = to.top + "px"; });
+      setTimeout(() => { slot.innerHTML = chip.innerHTML; slot.classList.add("filled"); chip.remove(); place(i + 1); }, 650);
+    }
+    setTimeout(() => place(0), 300);
+  }
+}
+
+
+function showPattern(i) {
+  mode = "pattern";
+  tight = false;
+  hideLines();
+  patternStep = Math.max(0, Math.min(PATTERNS.length - 1, i));
+  const s = PATTERNS[patternStep];
+  maxDepth = 6;
+  focusOpen = null;
+  document.querySelectorAll("#pattern-steps button").forEach((b, n) => b.classList.toggle("active", n === patternStep));
+  if (s.view === "lines") {
+    showJobLines();
+    return;
+  }
+  setHover(null);
+  layout();
+  nodes.forEach(n => {
+    n.el.classList.remove("arrive", "glow", "dim");
+    if (!visible(n)) return;
+    if (s.spot.length && !s.spot.includes(n.name)) n.el.classList.add("dim");
+    if (s.spot.includes(n.name)) {
+      n.el.classList.add("glow");
+      n.el.style.setProperty("--glow", s.glow);
+    }
+  });
+  if (s.spot.length) focusHighlights();
+  else fit();
+}
+
+document.getElementById("forward").onclick = () => fadeStage(() => showStep(step + 1));
+document.getElementById("back").onclick = () => fadeStage(() => showStep(step - 1));
+document.getElementById("pforward").onclick = () => fadeStage(() => showPattern(mode === "pattern" ? patternStep + 1 : 0));
+document.getElementById("pback").onclick = () => fadeStage(() => showPattern(patternStep - 1));
+
+const DECOMP_LABELS = ["Layer 1", "Layer 2", "Layer 3", "Layer 4", "Layer 5", "Layer 6", "Layer 7", "Layer 8"];
+const PATTERN_LABELS = ["Fitted tree", "Training", "Second highlight", "Same jobs"];
+function fillSteps(id, labels, fn, numbered) {
+  const box = document.getElementById(id);
+  labels.forEach((label, i) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.textContent = numbered ? ((i + 1) + "  " + label) : label;
+    btn.onclick = () => fadeStage(() => fn(i));
+    box.appendChild(btn);
+  });
+}
+fillSteps("decomp-steps", DECOMP_LABELS, showStep, false);
+fillSteps("pattern-steps", PATTERN_LABELS, showPattern, true);
+fillSteps("abs-steps", ABS_LABELS, showAbstraction, true);
+document.getElementById("aforward").onclick = () => fadeStage(() => showAbstraction(absStep + 1));
+document.getElementById("aback").onclick = () => fadeStage(() => showAbstraction(absStep - 1));
+fillSteps("algo-steps", ALGO_LABELS, showAlgorithm, true);
+document.getElementById("gforward").onclick = () => fadeStage(() => showAlgorithm(algoStep + 1));
+document.getElementById("gback").onclick = () => fadeStage(() => showAlgorithm(algoStep - 1));
+document.querySelectorAll(".tab").forEach(tab => {
+  tab.onclick = () => {
+    document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+    tab.classList.add("active");
+    document.querySelectorAll(".panel").forEach(p => p.classList.remove("on"));
+    document.getElementById("panel-" + tab.dataset.panel).classList.add("on");
+    const line = {"decomposition": "Split the event until a box is a job.", "pattern": "Find the job that repeats.", "abstraction": "Hide the method inside the job.", "algorithm": "Write the order for one hidden job."}[tab.dataset.panel] || "";
+    const tabLine = document.getElementById("tab-line");
+    if (tabLine) tabLine.textContent = line;
+    if (tab.dataset.panel === "decomposition") showStep(step);
+    if (tab.dataset.panel === "pattern") showPattern(patternStep);
+    if (tab.dataset.panel === "abstraction") showAbstraction(absStep);
+    if (tab.dataset.panel === "algorithm") showAlgorithm(algoStep);
+  };
+});
+
+stage.addEventListener("wheel", (e) => {
+  e.preventDefault();
+  const rect = stage.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  const next = Math.min(1.8, Math.max(0.12, scale * (e.deltaY < 0 ? 1.08 : 0.92)));
+  panX = mx - ((mx - panX) / scale) * next;
+  panY = my - ((my - panY) / scale) * next;
+  scale = next;
+  applyTransform();
+}, { passive: false });
+
+let drag = null;
+stage.addEventListener("pointerdown", (e) => {
+  if (e.target.closest(".box")) return;
+  drag = { x: e.clientX, y: e.clientY, panX, panY };
+  stage.classList.add("dragging");
+});
+window.addEventListener("pointermove", (e) => {
+  if (!drag) return;
+  panX = drag.panX + (e.clientX - drag.x);
+  panY = drag.panY + (e.clientY - drag.y);
+  applyTransform();
+});
+window.addEventListener("pointerup", () => {
+  drag = null;
+  stage.classList.remove("dragging");
+});
+
+function start() {
+  layout();
+  fit();
+  showStep(0);
+}
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(start);
+else start();
+</script>
+</body>
+</html>
