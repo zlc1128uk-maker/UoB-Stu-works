@@ -1,0 +1,7 @@
+my_tuple=(15, "Python", 3.14, True, 42, False)
+print(my_tuple.index("Python"))
+print(my_tuple.count(True))
+my_list=list(my_tuple)
+my_list.remove(15)
+my_list.remove(False)
+print(my_list)
